@@ -59,6 +59,9 @@ public class PackageEntity {
     @Column(nullable = false)
     private long totalSizeBytes;
 
+    @Column(nullable = false)
+    private String notes;
+
     @OneToMany(mappedBy = "airgapPackage", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<FileItemEntity> files = new ArrayList<>();
 
@@ -96,4 +99,7 @@ public class PackageEntity {
 
     public List<FileItemEntity> getFiles() { return files; }
     public void setFiles(List<FileItemEntity> files) { this.files = files; }
+
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
 }
