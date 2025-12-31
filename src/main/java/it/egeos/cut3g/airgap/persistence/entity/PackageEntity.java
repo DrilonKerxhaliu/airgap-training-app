@@ -1,6 +1,7 @@
 package it.egeos.cut3g.airgap.persistence.entity;
 
 import it.egeos.cut3g.airgap.api.Direction;
+import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 
 import javax.persistence.*;
 import java.time.Instant;
@@ -11,17 +12,6 @@ import java.util.UUID;
 @Entity
 @Table(name = "t_airgap_package")
 public class PackageEntity {
-
-    public enum State {
-        NEW,
-        CREATED,
-        EXPORTED,
-        IMPORTED,
-        INJECTED,
-        FAILED,
-        REJECTED,
-        DELETED
-    }
 
     @Id
     @Column(length = 36)
@@ -36,7 +26,7 @@ public class PackageEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private State state = State.NEW;
+    private PackageState state = PackageState.NEW;
 
     @Column(nullable = false, unique = true)
     private long progressiveNumber;
@@ -73,8 +63,13 @@ public class PackageEntity {
     public Direction getDirection() { return direction; }
     public void setDirection(Direction direction) { this.direction = direction; }
 
-    public State getState() { return state; }
-    public void setState(State state) { this.state = state; }
+    public PackageState getState() {
+        return state;
+    }
+
+    public void setState(PackageState state) {
+        this.state = state;
+    }
 
     public long getProgressiveNumber() { return progressiveNumber; }
     public void setProgressiveNumber(long progressiveNumber) { this.progressiveNumber = progressiveNumber; }

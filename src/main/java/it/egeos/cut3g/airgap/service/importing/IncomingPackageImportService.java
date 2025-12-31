@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import it.egeos.cut3g.airgap.api.Direction;
 import it.egeos.cut3g.airgap.persistence.entity.ImportTransactionEntity;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
+import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.repo.ImportTransactionRepository;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.service.crypto.CryptoService;
@@ -78,7 +79,7 @@ public class IncomingPackageImportService {
             long expected = lastTx.get().getUploadSequenceNumber() + 1;
             if (progressive > 0 && progressive != expected) {
                 log.warn("REJECTED {} due to sequence hole. expected={}, got={}", pkgName, expected, progressive);
-                markPackageState(direction, pkgName, pkgTarPath, PackageEntity.State.REJECTED, "Sequence hole");
+                markPackageState(direction, pkgName, pkgTarPath, PackageState.REJECTED, "Sequence hole");
                 return false;
             }
         }
@@ -94,14 +95,14 @@ public class IncomingPackageImportService {
                             PackageManifest.class);
 
             if (manifest == null || manifest.getMd5DataTar() == null) {
-                markPackageState(direction, pkgName, pkgTarPath, PackageEntity.State.REJECTED, "manifest is empty");
+                markPackageState(direction, pkgName, pkgTarPath, PackageState.REJECTED, "manifest is empty");
                 return false;
             }
 
             // Verify MD5(data.tar)
             String md5 = HashUtils.md5Hex(outer.dataTarBytes); // this should be taken from DB .. TODO
             if (!manifest.getMd5DataTar().equalsIgnoreCase(md5)) {
-                markPackageState(direction, pkgName, pkgTarPath, PackageEntity.State.REJECTED, "MD5 mismatch");
+                markPackageState(direction, pkgName, pkgTarPath, PackageState.REJECTED, "MD5 mismatch");
                 return false;
             }
 
@@ -112,13 +113,13 @@ public class IncomingPackageImportService {
             // Audit ACCEPTED
             // .. TODO
 
-            markPackageState(direction, pkgName, pkgTarPath, PackageEntity.State.IMPORTED, "Imported OK");
+            markPackageState(direction, pkgName, pkgTarPath, PackageState.IMPORTED, "Imported OK");
             cleanupAndArchiveAfterSuccess(pkgTarPath, workDir);
             log.info("IMPORTED package {} successfully", pkgName);
             return true;
 
         } catch (Exception ex) {
-            markPackageState(direction, pkgName, pkgTarPath, PackageEntity.State.FAILED, ex.getMessage());
+            markPackageState(direction, pkgName, pkgTarPath, PackageState.FAILED, ex.getMessage());
             log.error("FAILED importing {}", pkgName, ex);
             return false;
         }
@@ -140,7 +141,7 @@ public class IncomingPackageImportService {
     }
 
     private void markPackageState(Direction direction, String pkgName, Path pkgPath,
-                                  PackageEntity.State state, String notes) {
+                                  PackageState state, String notes) {
 
         PackageEntity p = new PackageEntity();
         Instant now = Instant.now();
