@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import it.egeos.cut3g.airgap.api.Direction;
 import it.egeos.cut3g.airgap.persistence.entity.FileItemEntity;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
+import it.egeos.cut3g.airgap.persistence.enums.FileItemState;
+import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.repo.FileItemRepository;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.service.crypto.CryptoService;
@@ -37,7 +39,7 @@ public class PackagingService {
     @Value("${airgap.collect.in}")
     private String collectedIn;
 
-    @Value("${airgap.packages.dir}")
+    @Value("${airgap.incoming.packages.dir}")
     private String packagesDir;
 
     @Autowired
@@ -61,11 +63,13 @@ public class PackagingService {
      * Uses PESSIMISTIC_WRITE locking via repository query.
      */
     @Transactional
-    public Optional<PackageEntity> createLatestPackage(Direction direction) {
+    public Optional<PackageEntity> createLatestOrAutoPackage(Direction direction) {
+        log.info("Start creating LATEST or AUTO package on the direction: {} ", direction.name());
+
         Instant start = Instant.now();
 
         // Lock NEW rows to avoid concurrent collisions.
-        List<FileItemEntity> newFiles = fileItemRepository.findNewFilesForUpdate();
+        List<FileItemEntity> newFiles = fileItemRepository.findByStateForUpdate(FileItemState.NEW);
         if (newFiles.isEmpty()) {
             return Optional.empty();
         }
@@ -83,10 +87,10 @@ public class PackagingService {
         pkg.setTransactionStartTime(start);
         pkg.setTransactionStopTime(stop);
         pkg.setPackageName(pkgName);
-        pkg.setState(PackageEntity.State.NEW);
+        pkg.setState(PackageState.NEW);
 
         for (FileItemEntity f : newFiles) {
-            f.setState(FileItemEntity.State.ACTIVE);
+            f.setState(FileItemState.ACTIVE);
             f.setAirgapPackage(pkg);
         }
         pkg.setFiles(newFiles);
@@ -113,7 +117,7 @@ public class PackagingService {
         // Encrypt manifest (AES-256)
         byte[] manifestEnc = cryptoService.encrypt(manifestJson);
 
-        // Write outer TAR to disk
+        // Write outer TAR to disk [finale package .tar]
         Path outPath = Paths.get(packagesDir).resolve(pkgName);
         tarService.writeOuterTar(outPath, "manifest.enc", manifestEnc, dataTarName, dataTarBytes);
 
@@ -121,15 +125,15 @@ public class PackagingService {
         pkg.setMd5DataTar(md5);
         pkg.setTotalSizeBytes(newFiles.stream().mapToLong(FileItemEntity::getSizeBytes).sum());
         pkg.setPackagePath(outPath.toString());
-        pkg.setState(PackageEntity.State.CREATED);
+        pkg.setState(PackageState.CREATED);
 
         for (FileItemEntity f : newFiles) {
-            f.setState(FileItemEntity.State.PACKED);
+            f.setState(FileItemState.PACKED);
         }
         packageRepository.save(pkg);
         fileItemRepository.saveAll(newFiles);
 
-        log.info("Created LATEST package {} with {} files", pkgName, newFiles.size());
+        log.info("Created LATEST or AUTO package {} with {} files", pkgName, newFiles.size());
         return Optional.of(pkg);
     }
 }

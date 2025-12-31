@@ -1,5 +1,7 @@
 package it.egeos.cut3g.airgap.persistence.entity;
 
+import it.egeos.cut3g.airgap.persistence.enums.FileItemState;
+
 import javax.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -10,12 +12,6 @@ import java.util.UUID;
         @Index(name = "idx_airgap_file_received", columnList = "receivedTime")
 })
 public class FileItemEntity {
-
-    public enum State {
-        NEW,
-        ACTIVE,
-        PACKED
-    }
 
     @Id
     @Column(length = 36)
@@ -35,7 +31,7 @@ public class FileItemEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private State state = State.NEW;
+    private FileItemState state = FileItemState.NEW;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "package_id")
@@ -55,9 +51,14 @@ public class FileItemEntity {
     public Instant getReceivedTime() { return receivedTime; }
     public void setReceivedTime(Instant receivedTime) { this.receivedTime = receivedTime; }
 
-    public State getState() { return state; }
-    public void setState(State state) { this.state = state; }
-
     public PackageEntity getAirgapPackage() { return airgapPackage; }
     public void setAirgapPackage(PackageEntity airgapPackage) { this.airgapPackage = airgapPackage; }
+
+    public FileItemState getState() {
+        return state;
+    }
+
+    public void setState(FileItemState state) {
+        this.state = state;
+    }
 }

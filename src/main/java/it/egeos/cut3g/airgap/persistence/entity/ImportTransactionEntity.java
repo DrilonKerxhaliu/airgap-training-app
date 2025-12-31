@@ -1,6 +1,7 @@
 package it.egeos.cut3g.airgap.persistence.entity;
 
 import it.egeos.cut3g.airgap.api.Direction;
+import it.egeos.cut3g.airgap.persistence.enums.ImportOutcome;
 
 import javax.persistence.*;
 import java.time.Instant;
@@ -27,8 +28,9 @@ public class ImportTransactionEntity {
     @Column(nullable = false)
     private Instant receivedTime = Instant.now();
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String outcome; // ACCEPTED / REJECTED
+    private ImportOutcome outcome;
 
     @Column(nullable = true)
     private String notes;
@@ -47,9 +49,14 @@ public class ImportTransactionEntity {
     public Instant getReceivedTime() { return receivedTime; }
     public void setReceivedTime(Instant receivedTime) { this.receivedTime = receivedTime; }
 
-    public String getOutcome() { return outcome; }
-    public void setOutcome(String outcome) { this.outcome = outcome; }
-
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+
+    public ImportOutcome getOutcome() {
+        return outcome;
+    }
+
+    public void setOutcome(ImportOutcome outcome) {
+        this.outcome = outcome;
+    }
 }
