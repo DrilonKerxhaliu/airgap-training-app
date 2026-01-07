@@ -1,6 +1,5 @@
 package it.egeos.cut3g.airgap.persistence.entity;
 
-import it.egeos.cut3g.airgap.api.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.TransactionState;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -14,7 +13,6 @@ import java.util.UUID;
         name = "transactions",
         indexes = {
                 @Index(name = "idx_tx_state", columnList = "state"),
-                @Index(name = "idx_tx_direction", columnList = "direction"),
                 @Index(name = "idx_tx_package_id", columnList = "package_id")
         }
 )
@@ -26,13 +24,6 @@ public class TransactionEntity {
 
     @Version
     private long version;
-
-    /**
-     * Direction of the transaction (UPSTREAM / DOWNSTREAM)
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Direction direction;
 
     /**
      * Example: PKG_20250101_000123.tar
@@ -83,14 +74,6 @@ public class TransactionEntity {
 
     public void setVersion(long version) {
         this.version = version;
-    }
-
-    public Direction getDirection() {
-        return direction;
-    }
-
-    public void setDirection(Direction direction) {
-        this.direction = direction;
     }
 
     public String getPackageId() {

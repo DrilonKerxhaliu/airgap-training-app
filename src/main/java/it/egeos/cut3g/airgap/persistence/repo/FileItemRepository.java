@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import javax.persistence.LockModeType;
 import java.util.List;
+import java.util.Optional;
 
 public interface FileItemRepository extends JpaRepository<FileItemEntity, String> {
 
@@ -17,4 +18,14 @@ public interface FileItemRepository extends JpaRepository<FileItemEntity, String
 
     @Query(" select count(f) from FileItemEntity f where f.state = :state ")
     long countByState(@Param("state") FileItemState state);
+
+    @Query(" select coalesce(sum(f.sizeBytes), 0) from FileItemEntity f where f.state = :state ")
+    long sumSizeByState(@Param("state") FileItemState state);
+
+
+    // FolderWatcher: find-or-create by path
+    Optional<FileItemEntity> findByRelativePath(String relativePath);
+
+    // debug, watcher, statistics, monitoring
+    List<FileItemEntity> findByState(FileItemState state);
 }

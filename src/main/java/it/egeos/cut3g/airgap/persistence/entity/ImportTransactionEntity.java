@@ -1,6 +1,5 @@
 package it.egeos.cut3g.airgap.persistence.entity;
 
-import it.egeos.cut3g.airgap.api.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.ImportOutcome;
 
 import javax.persistence.*;
@@ -17,10 +16,6 @@ public class ImportTransactionEntity {
 
     @Version
     private long version;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Direction direction;
 
     @Column(nullable = false)
     private long uploadSequenceNumber;
@@ -39,9 +34,6 @@ public class ImportTransactionEntity {
 
     public long getVersion() { return version; }
     public void setVersion(long version) { this.version = version; }
-
-    public Direction getDirection() { return direction; }
-    public void setDirection(Direction direction) { this.direction = direction; }
 
     public long getUploadSequenceNumber() { return uploadSequenceNumber; }
     public void setUploadSequenceNumber(long uploadSequenceNumber) { this.uploadSequenceNumber = uploadSequenceNumber; }
