@@ -1,7 +1,6 @@
 package it.egeos.cut3g.airgap.service.packageing;
 
 import com.google.gson.Gson;
-import it.egeos.cut3g.airgap.api.Direction;
 import it.egeos.cut3g.airgap.persistence.entity.FileItemEntity;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.FileItemState;
@@ -63,8 +62,8 @@ public class PackagingService {
      * Uses PESSIMISTIC_WRITE locking via repository query.
      */
     @Transactional
-    public Optional<PackageEntity> createLatestOrAutoPackage(Direction direction) {
-        log.info("Start creating LATEST or AUTO package on the direction: {} ", direction.name());
+    public Optional<PackageEntity> createLatestOrAutoPackage() {
+        log.info("Start creating LATEST or AUTO package! ");
 
         Instant start = Instant.now();
 
@@ -82,7 +81,6 @@ public class PackagingService {
 
         // Mark files ACTIVE and attach to package (transactional snapshot)
         PackageEntity pkg = new PackageEntity();
-        pkg.setDirection(direction);
         pkg.setProgressiveNumber(progressive);
         pkg.setTransactionStartTime(start);
         pkg.setTransactionStopTime(stop);
