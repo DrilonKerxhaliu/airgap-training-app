@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.util.List;
 
 public interface PackageRepository extends JpaRepository<PackageEntity, String> {
-    List<PackageEntity> findByDirectionAndStateOrderByTransactionStopTimeDesc(PackageState state);
-    List<PackageEntity> findByDirectionAndStateInOrderByTransactionStopTimeDesc(List<PackageState> states);
+    List<PackageEntity> findByStateOrderByTransactionStopTimeDesc(PackageState state);
+    List<PackageEntity> findByStateInOrderByTransactionStopTimeDesc(List<PackageState> states);
     List<PackageEntity> findByStateNotAndTransactionStopTimeBefore(PackageState state, Instant cutoff);
 }

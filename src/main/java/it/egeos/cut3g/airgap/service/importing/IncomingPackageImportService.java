@@ -72,7 +72,7 @@ public class IncomingPackageImportService {
 
         // Sequence check (optional, but recommended)
         Optional<ImportTransactionEntity> lastTx =
-                importTransactionRepository.findTopByDirectionOrderByUploadSequenceNumberDesc();
+                importTransactionRepository.findTopByOrderByUploadSequenceNumberDesc();
 
         if (lastTx.isPresent()) {
             long expected = lastTx.get().getUploadSequenceNumber() + 1;

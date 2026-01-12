@@ -30,7 +30,7 @@ public class SizeBasedPackagingJob implements Job {
         long totalSize =
                 fileItemRepository.sumSizeByState(FileItemState.NEW);
 
-        long threshold = maxMb * 1024L * 1024L;
+        long threshold = maxMb;
 
         if (totalSize >= threshold) {
             packagingService.createLatestOrAutoPackage();
