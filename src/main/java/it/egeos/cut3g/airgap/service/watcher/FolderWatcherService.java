@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
+import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
 import java.util.Map;
@@ -22,7 +23,7 @@ public class FolderWatcherService {
     @Value("${airgap.collect.in}")
     private String collectInDir;
 
-    @Value("${airgap.file.stable.seconds:10}")
+    @Value("${airgap.file.stable.seconds}")
     private long stableSeconds;
 
     private final FileItemRepository fileItemRepository;
@@ -34,15 +35,38 @@ public class FolderWatcherService {
     /**
      * Tracks INSERT files waiting to become stable.
      */
-    private final Map<Path, FileSnapshot> activeFiles = new ConcurrentHashMap<>();
+    private Path rootPath;
+
+    /**
+     * files in INSERT state
+     */
+    private final Map<Path, FileSnapshot> insertingFiles = new ConcurrentHashMap<>();
 
     public FolderWatcherService(FileItemRepository fileItemRepository) {
-        this.fileItemRepository = fileItemRepository;}
+        this.fileItemRepository = fileItemRepository;
+    }
 
     // start watcher
 
     @PostConstruct
     public void start() {
+        this.rootPath = Paths.get(collectInDir);
+
+        try {
+            Files.createDirectories(rootPath);
+        } catch (Exception e) {
+            log.error("Unable to create/watch directory {}", collectInDir, e);
+            return;
+        }
+
+        try {
+            Files.walk(rootPath)
+                    .filter(Files::isRegularFile)
+                    .forEach(this::registerInsert);
+        } catch (IOException e) {
+            log.warn("Initial scan failed for {}", rootPath, e);
+        }
+
         watcherExecutor.submit(this::watchLoop);
         stabilityExecutor.scheduleAtFixedRate(
                 this::checkStability,
@@ -50,34 +74,28 @@ public class FolderWatcherService {
                 stableSeconds,
                 TimeUnit.SECONDS
         );
-        log.info("FolderWatcher started on {}", collectInDir);
+        log.info("FolderWatcher started on {}", rootPath);
     }
+
 
     // watch filesystem
 
     private void watchLoop() {
         try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
 
-            Path root = Paths.get(collectInDir);
-            root.register(watchService,
-                    StandardWatchEventKinds.ENTRY_CREATE,
-                    StandardWatchEventKinds.ENTRY_MODIFY
-            );
+            registerRecursive(rootPath, watchService);
 
             while (true) {
                 WatchKey key = watchService.take();
+                Path watchedDir = (Path) key.watchable();
 
                 for (WatchEvent<?> event : key.pollEvents()) {
-                    if (event.kind() == StandardWatchEventKinds.OVERFLOW) {
-                        continue;
-                    }
+                    if (event.kind() == StandardWatchEventKinds.OVERFLOW) continue;
 
                     Path relative = (Path) event.context();
-                    Path fullPath = root.resolve(relative);
+                    Path fullPath = watchedDir.resolve(relative).normalize();
 
-                    if (!Files.isRegularFile(fullPath)) {
-                        continue;
-                    }
+                    if (!Files.isRegularFile(fullPath)) continue;
 
                     registerInsert(fullPath);
                 }
@@ -97,7 +115,7 @@ public class FolderWatcherService {
             long size = Files.size(file);
             Instant now = Instant.now();
 
-            activeFiles.compute(file, (p, snap) -> {
+            insertingFiles.compute(file, (p, snap) -> {
                 if (snap == null) {
                     markDbState(file, FileItemState.INSERT);
                     return new FileSnapshot(size, now);
@@ -106,7 +124,7 @@ public class FolderWatcherService {
                 return snap;
             });
 
-        } catch (Exception ignored) {
+        } catch (IOException ignored) {
         }
     }
 
@@ -116,14 +134,14 @@ public class FolderWatcherService {
     private void checkStability() {
         Instant now = Instant.now();
 
-        for (Map.Entry<Path, FileSnapshot> e : activeFiles.entrySet()) {
+        for (Map.Entry<Path, FileSnapshot> e : insertingFiles.entrySet()) {
             Path file = e.getKey();
             FileSnapshot snap = e.getValue();
 
             if (snap.isStable(now, stableSeconds)) {
                 markDbState(file, FileItemState.NEW);
-                activeFiles.remove(file);
-                log.info("File {} became STABLE → NEW", file.getFileName());
+                insertingFiles.remove(file);
+                log.info("File {} became STABLE → NEW", rootPath.relativize(file));
             }
         }
     }
@@ -131,27 +149,28 @@ public class FolderWatcherService {
     // DB state update
 
     private void markDbState(Path file, FileItemState state) {
-        String relativePath = file.getFileName().toString();
-
-        FileItemEntity entity =
-                fileItemRepository.findByRelativePath(relativePath)
-                        .orElseGet(() -> {
-                            FileItemEntity f = new FileItemEntity();
-                            f.setRelativePath(relativePath);
-                            return f;
-                        });
-
-        entity.setSizeBytes(safeSize(file));
-        entity.setState(state);
-
-        fileItemRepository.save(entity);
-    }
-
-    private long safeSize(Path p) {
         try {
-            return Files.size(p);
-        } catch (Exception e) {
-            return 0L;
+            String relativePath = rootPath.relativize(file).toString();
+
+            FileItemEntity entity =
+                    fileItemRepository.findByRelativePath(relativePath)
+                            .orElseGet(() -> {
+                                FileItemEntity f = new FileItemEntity();
+                                f.setRelativePath(relativePath);
+                                return f;
+                            });
+
+            if (state == FileItemState.NEW) {
+                entity.setSizeBytes(Files.size(file)); // FINAL SIZE
+            }
+
+            entity.setState(state);
+            log.info("Saving DB state: path={}, state={}", relativePath, state);
+            FileItemEntity saved = fileItemRepository.save(entity);
+            log.info("Saved entity ID={}", saved.getId());
+
+        } catch (IOException e) {
+            log.warn("Unable to update DB state for {}", file, e);
         }
     }
 
@@ -177,4 +196,29 @@ public class FolderWatcherService {
             return now.minusSeconds(stableSeconds).isAfter(lastChange);
         }
     }
+
+   private void registerRecursive(Path root, WatchService ws) throws IOException {
+    if (root == null) {
+        log.error("registerRecursive called with null rootPath");
+        return;
+    }
+    if (!Files.exists(root)) {
+        log.warn("Root directory {} does not exist", root);
+        return;
+    }
+
+    Files.walk(root)
+            .filter(Files::isDirectory)
+            .forEach(dir -> {
+                try {
+                    dir.register(ws,
+                            StandardWatchEventKinds.ENTRY_CREATE,
+                            StandardWatchEventKinds.ENTRY_MODIFY);
+                } catch (IOException e) {
+                    log.warn("Unable to register {}", dir, e);
+                }
+            });
+}
+
+
 }

@@ -47,6 +47,8 @@ public class QuartzConfig {
     * SIZE-BASED PACKAGING
     **/
 
+    /*
+
     @Bean
     public JobDetail sizeBasedPackagingJobDetail() {
         return newJob(SizeBasedPackagingJob.class)
@@ -67,4 +69,6 @@ public class QuartzConfig {
                 )
                 .build();
     }
+
+    */
 }

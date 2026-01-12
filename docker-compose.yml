@@ -1,1 +1,24 @@
+version: "3.9"
 
+services:
+  postgres:
+    image: postgres:15
+    container_name: airgap-service-dev
+    restart: always
+    environment:
+      POSTGRES_DB: airgap_dev_db
+      POSTGRES_USER: airgap_dev_user
+      POSTGRES_PASSWORD: airgap_dev_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - airgap_dev_pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airgap_dev_user -d airgap_dev_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  airgap_dev_pgdata:
