@@ -19,12 +19,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -55,8 +54,6 @@ public class PackagingService {
 
     private final Gson gson = new Gson();
 
-    private final AtomicLong progressiveCounter = new AtomicLong(1);
-
     /**
      * LATEST = on-demand packaging triggered by REST.
      * Uses PESSIMISTIC_WRITE locking via repository query.
@@ -70,10 +67,12 @@ public class PackagingService {
         // Lock NEW rows to avoid concurrent collisions.
         List<FileItemEntity> newFiles = fileItemRepository.findByStateForUpdate(FileItemState.NEW);
         if (newFiles.isEmpty()) {
+            log.info("No NEW files to package.");
             return Optional.empty();
         }
 
-        long progressive = progressiveCounter.getAndIncrement();
+        long progressive = packageRepository.findMaxProgressiveNumber() + 1;
+
         Instant stop = Instant.now();
 
         String pkgName = NameUtils.packageName(start, stop, progressive);
@@ -81,20 +80,15 @@ public class PackagingService {
 
         // Mark files ACTIVE and attach to package (transactional snapshot)
         PackageEntity pkg = new PackageEntity();
-        pkg.setProgressiveNumber(progressive);
         pkg.setTransactionStartTime(start);
         pkg.setTransactionStopTime(stop);
         pkg.setPackageName(pkgName);
         pkg.setState(PackageState.NEW);
 
         for (FileItemEntity f : newFiles) {
-            f.setState(FileItemState.ACTIVE);
             f.setAirgapPackage(pkg);
         }
         pkg.setFiles(newFiles);
-
-        packageRepository.save(pkg);
-        fileItemRepository.saveAll(newFiles);
 
         // Build data TAR bytes
         Path inRoot = Paths.get(collectedIn);
@@ -119,16 +113,28 @@ public class PackagingService {
         Path outPath = Paths.get(packagesDir).resolve(pkgName);
         tarService.writeOuterTar(outPath, "manifest.enc", manifestEnc, dataTarName, dataTarBytes);
 
-        // Finalize DB
+        // Finalize package
+        long totalSize = newFiles.stream()
+                .mapToLong(FileItemEntity::getSizeBytes)
+                .sum();
+
         pkg.setMd5DataTar(md5);
-        pkg.setTotalSizeBytes(newFiles.stream().mapToLong(FileItemEntity::getSizeBytes).sum());
+        pkg.setTotalSizeBytes(totalSize);
         pkg.setPackagePath(outPath.toString());
         pkg.setState(PackageState.CREATED);
 
+        // SAVE on DB , final package
+        log.info("About to save package: path={}, md5DataTar={}, size={}",
+                pkg.getPackagePath(),
+                pkg.getMd5DataTar(),
+                pkg.getTotalSizeBytes());
+
+        packageRepository.save(pkg);
+        log.info("Saved package with id={}", pkg.getId());
         for (FileItemEntity f : newFiles) {
             f.setState(FileItemState.PACKED);
         }
-        packageRepository.save(pkg);
+
         fileItemRepository.saveAll(newFiles);
 
         log.info("Created LATEST or AUTO package {} with {} files", pkgName, newFiles.size());

@@ -22,7 +22,6 @@ public interface FileItemRepository extends JpaRepository<FileItemEntity, String
     @Query(" select coalesce(sum(f.sizeBytes), 0) from FileItemEntity f where f.state = :state ")
     long sumSizeByState(@Param("state") FileItemState state);
 
-
     // FolderWatcher: find-or-create by path
     Optional<FileItemEntity> findByRelativePath(String relativePath);
 
