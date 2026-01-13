@@ -6,38 +6,12 @@ CREATE SCHEMA IF NOT EXISTS airgap;
 SET search_path TO airgap;
 
 -- ================================
--- ENUMS
--- ================================
-
-CREATE TYPE file_item_state AS ENUM (
-    'INSERT',
-    'NEW',
-    'ACTIVE',
-    'PACKED',
-    'EXTRACTED',
-    'ROUTED',
-    'REJECTED'
-);
-
-CREATE TYPE package_state AS ENUM (
-    'NEW',
-    'CREATED',
-    'EXPORTED',
-    'IMPORTED',
-    'INJECTED',
-    'FAILED',
-    'REJECTED',
-    'DELETED'
-);
-
--- ================================
 -- PACKAGE
 -- ================================
 
 CREATE TABLE t_airgap_package (
                                   id VARCHAR(36) PRIMARY KEY,
-                                  version BIGINT NOT NULL,
-                                  state package_state NOT NULL,
+                                  state VARCHAR(32) NOT NULL,  -- was enum
                                   progressive_number BIGINT NOT NULL UNIQUE,
                                   transaction_start_time TIMESTAMP NOT NULL,
                                   transaction_stop_time TIMESTAMP NOT NULL,
@@ -47,7 +21,6 @@ CREATE TABLE t_airgap_package (
                                   total_size_bytes BIGINT NOT NULL,
                                   notes TEXT
 );
-
 -- ================================
 -- FILE ITEM
 -- ================================
@@ -58,7 +31,7 @@ CREATE TABLE t_airgap_file_item (
                                     relative_path TEXT NOT NULL,
                                     size_bytes BIGINT NOT NULL,
                                     received_time TIMESTAMP NOT NULL,
-                                    state file_item_state NOT NULL,
+                                    state VARCHAR(32) NOT NULL,  -- was enum
                                     package_id VARCHAR(36),
 
                                     CONSTRAINT fk_file_package
@@ -79,3 +52,13 @@ CREATE INDEX idx_airgap_file_received
 
 CREATE UNIQUE INDEX uk_file_relative_path
     ON t_airgap_file_item(relative_path);
+
+CREATE SEQUENCE airgap.package_progressive_seq
+    START 1
+INCREMENT 1;
+
+
+CREATE SEQUENCE IF NOT EXISTS airgap.package_progressive_seq START 1;
+
+ALTER TABLE airgap.t_airgap_package
+    ALTER COLUMN progressive_number SET DEFAULT nextval('airgap.package_progressive_seq');

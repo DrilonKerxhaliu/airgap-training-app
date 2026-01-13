@@ -1,16 +1,56 @@
 package it.egeos.cut3g.airgap.controller;
 
+import it.egeos.cut3g.airgap.api.LatestPackageResponse;
+import it.egeos.cut3g.airgap.api.dto.PackageDto;
+import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
+import it.egeos.cut3g.airgap.service.packageing.PackagingService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import java.util.Optional;
 
 /**
  * JSON-only REST API.
- * Direction is part of path: /airgap/{direction}/...
  */
 @RestController
 @RequestMapping(value = "/airgap", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
 @Validated
 public class AirgapController {
-    //TODO
+
+    private static final Logger log = LoggerFactory.getLogger(AirgapController.class);
+
+    @Autowired
+    private PackagingService packagingService;
+
+    /**
+     * Manual LATEST trigger
+     * POST /airgap/packages/latest
+     */
+    @PostMapping("/packages/latest")
+    public ResponseEntity<?> createLatestPackage() {
+
+        log.info("Manual LATEST trigger requested");
+
+        Optional<PackageEntity> pkgOpt = packagingService.createLatestOrAutoPackage();
+
+        if (pkgOpt.isEmpty()) {
+            return ResponseEntity.ok(new LatestPackageResponse(
+                    false,
+                    "No NEW files to package",
+                    null
+            ));
+        }
+
+        PackageEntity pkg = pkgOpt.get();
+
+        return ResponseEntity.ok(new LatestPackageResponse(
+                true,
+                "Package created successfully",
+                PackageDto.from(pkg)
+        ));
+    }
 }

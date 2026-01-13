@@ -16,44 +16,38 @@ public class PackageEntity {
     @Column(length = 36)
     private String id = UUID.randomUUID().toString();
 
-    @Version
-    private long version;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PackageState state = PackageState.NEW;
 
-    @Column(nullable = false, unique = true)
-    private long progressiveNumber;
+    @Column(name = "progressive_number", nullable = false, unique = true, insertable = false, updatable = false)
+    private Long progressiveNumber;
 
-    @Column(nullable = false)
+    @Column(name = "transaction_start_time", nullable = false)
     private Instant transactionStartTime;
 
-    @Column(nullable = false)
+    @Column(name = "transaction_stop_time", nullable = false)
     private Instant transactionStopTime;
 
-    @Column(nullable = false)
+    @Column(name = "package_name", nullable = false)
     private String packageName;
 
-    @Column(nullable = false)
+    @Column(name = "package_path", nullable = false)
     private String packagePath;
 
-    @Column(nullable = false)
+    @Column(name = "md5_data_tar", nullable = false)
     private String md5DataTar;
 
-    @Column(nullable = false)
+    @Column(name = "total_size_bytes", nullable = false)
     private long totalSizeBytes;
 
-    @Column(nullable = false)
+    @Column(name = "notes", nullable = true)
     private String notes;
 
     @OneToMany(mappedBy = "airgapPackage", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<FileItemEntity> files = new ArrayList<>();
 
     public String getId() { return id; }
-
-    public long getVersion() { return version; }
-    public void setVersion(long version) { this.version = version; }
 
     public PackageState getState() {
         return state;
