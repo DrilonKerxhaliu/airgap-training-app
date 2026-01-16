@@ -15,6 +15,7 @@ CREATE TABLE t_airgap_package (
                                   progressive_number BIGINT NOT NULL UNIQUE,
                                   transaction_start_time TIMESTAMP NOT NULL,
                                   transaction_stop_time TIMESTAMP NOT NULL,
+                                  exported_at TIMESTAMP,
                                   package_name VARCHAR(255) NOT NULL,
                                   package_path TEXT NOT NULL,
                                   md5_data_tar VARCHAR(64) NOT NULL,
@@ -62,3 +63,23 @@ CREATE SEQUENCE IF NOT EXISTS airgap.package_progressive_seq START 1;
 
 ALTER TABLE airgap.t_airgap_package
     ALTER COLUMN progressive_number SET DEFAULT nextval('airgap.package_progressive_seq');
+
+
+-- ================================
+-- DOWNSTREAM TRANSACTIONS
+-- ================================
+
+CREATE TABLE IF NOT EXISTS t_airgap_transactions (
+    id UUID PRIMARY KEY,
+    version BIGINT DEFAULT 0,
+    package_id VARCHAR(36) NOT NULL,
+    state VARCHAR(32) NOT NULL,
+    start_ts TIMESTAMP NOT NULL,
+    end_ts TIMESTAMP,
+    note TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tx_state ON t_airgap_transactions(state);
+CREATE INDEX IF NOT EXISTS idx_tx_package_id ON t_airgap_transactions(package_id);

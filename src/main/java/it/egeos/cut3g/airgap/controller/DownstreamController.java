@@ -1,0 +1,59 @@
+package it.egeos.cut3g.airgap.controller;
+
+import it.egeos.cut3g.airgap.api.ApiResponse;
+import it.egeos.cut3g.airgap.api.dto.*;
+import it.egeos.cut3g.airgap.service.downstream.DownstreamService;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping(value = "/airgap/downstream", produces = MediaType.APPLICATION_JSON_VALUE)
+public class DownstreamController {
+
+    private final DownstreamService downstreamService;
+
+    public DownstreamController(DownstreamService downstreamService) {
+        this.downstreamService = downstreamService;
+    }
+
+    @GetMapping("/package/list")
+    public ApiResponse<List<PackageDto>> listPackagesReady() {
+        return ApiResponse.ok("OK", downstreamService.listReadyForDownload());
+    }
+
+    @GetMapping("/package/content/{packageId}")
+    public ApiResponse<PackageContentResponse> packageTarContent(@PathVariable String packageId) {
+        return ApiResponse.ok("OK", downstreamService.tarContent(packageId));
+    }
+
+    @GetMapping("/package/content/latest")
+    public ApiResponse<LatestContentResponse> latestCollectionSnapshot() {
+        return ApiResponse.ok("OK", downstreamService.getLatestFolderContent());
+    }
+
+    @GetMapping(value = "/package/{idOrLatest}", produces = MediaType.ALL_VALUE)
+    public ResponseEntity<?> downloadOrLatest(@PathVariable String idOrLatest) {
+        if ("latest".equalsIgnoreCase(idOrLatest)) {
+            return downstreamService.generateAndDeliverLatest();
+        }
+        return downstreamService.downloadExistingPackage(idOrLatest);
+    }
+
+    @GetMapping("/package/history/list")
+    public ApiResponse<List<PackageDto>> historyList() {
+        return ApiResponse.ok("OK", downstreamService.historyList());
+    }
+
+    @GetMapping("/statistics")
+    public ApiResponse<DownstreamStatisticsResponse> statistics() {
+        return ApiResponse.ok("OK", downstreamService.statistics());
+    }
+
+    @GetMapping("/status")
+    public ApiResponse<DownstreamStatusResponse> status() {
+        return ApiResponse.ok("OK", downstreamService.status());
+    }
+}

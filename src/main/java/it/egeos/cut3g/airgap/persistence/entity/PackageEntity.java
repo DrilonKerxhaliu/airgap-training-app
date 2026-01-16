@@ -29,6 +29,9 @@ public class PackageEntity {
     @Column(name = "transaction_stop_time", nullable = false)
     private Instant transactionStopTime;
 
+    @Column(name = "exported_at", nullable = true)
+    private Instant exportedAt;
+
     @Column(name = "package_name", nullable = false)
     private String packageName;
 
@@ -68,6 +71,14 @@ public class PackageEntity {
 
     public String getPackageName() { return packageName; }
     public void setPackageName(String packageName) { this.packageName = packageName; }
+
+    public Instant getExportedAt() {
+        return exportedAt;
+    }
+
+    public void setExportedAt(Instant exportedAt) {
+        this.exportedAt = exportedAt;
+    }
 
     public String getPackagePath() { return packagePath; }
     public void setPackagePath(String packagePath) { this.packagePath = packagePath; }

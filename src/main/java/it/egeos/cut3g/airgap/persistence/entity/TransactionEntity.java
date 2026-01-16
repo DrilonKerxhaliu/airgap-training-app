@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Entity
 @Table(
-        name = "transactions",
+        name = "t_airgap_transactions",
         indexes = {
                 @Index(name = "idx_tx_state", columnList = "state"),
                 @Index(name = "idx_tx_package_id", columnList = "package_id")
