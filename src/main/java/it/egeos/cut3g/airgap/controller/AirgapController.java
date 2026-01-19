@@ -1,6 +1,6 @@
 package it.egeos.cut3g.airgap.controller;
 
-import it.egeos.cut3g.airgap.api.LatestPackageResponse;
+import it.egeos.cut3g.airgap.api.ApiResponse;
 import it.egeos.cut3g.airgap.api.dto.PackageDto;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.service.packageing.PackagingService;
@@ -28,8 +28,11 @@ public class AirgapController {
 
     /**
      * Manual LATEST trigger
-     * POST /airgap/packages/latest
+     * GET /airgap/packages/latest
      */
+
+    /*
+    @Deprecated
     @PostMapping("/packages/latest")
     public ResponseEntity<?> createLatestPackage() {
 
@@ -38,7 +41,7 @@ public class AirgapController {
         Optional<PackageEntity> pkgOpt = packagingService.createLatestOrAutoPackage();
 
         if (pkgOpt.isEmpty()) {
-            return ResponseEntity.ok(new LatestPackageResponse(
+            return ResponseEntity.ok(new ApiResponse<>(
                     false,
                     "No NEW files to package",
                     null
@@ -47,10 +50,12 @@ public class AirgapController {
 
         PackageEntity pkg = pkgOpt.get();
 
-        return ResponseEntity.ok(new LatestPackageResponse(
+        return ResponseEntity.ok(new ApiResponse(
                 true,
                 "Package created successfully",
                 PackageDto.from(pkg)
         ));
     }
+
+     */
 }

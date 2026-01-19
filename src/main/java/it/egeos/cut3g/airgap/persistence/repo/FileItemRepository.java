@@ -13,8 +13,7 @@ public interface FileItemRepository extends JpaRepository<FileItemEntity, String
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(" select f from FileItemEntity f where f.state = :state order by f.receivedTime asc ")
-    List<FileItemEntity> findByStateForUpdate(
-            @Param("state") FileItemState state);
+    List<FileItemEntity> findByStateForUpdate(@Param("state") FileItemState state);
 
     @Query(" select count(f) from FileItemEntity f where f.state = :state ")
     long countByState(@Param("state") FileItemState state);
@@ -27,4 +26,7 @@ public interface FileItemRepository extends JpaRepository<FileItemEntity, String
 
     // debug, watcher, statistics, monitoring
     List<FileItemEntity> findByState(FileItemState state);
+
+    @Query("select f from FileItemEntity f where f.airgapPackage.id = :packageId order by f.relativePath asc")
+    List<FileItemEntity> findByPackageId(@Param("packageId") String packageId);
 }

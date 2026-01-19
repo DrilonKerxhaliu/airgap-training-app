@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Entity
 @Table(
-        name = "transactions",
+        name = "t_airgap_transactions",
         indexes = {
                 @Index(name = "idx_tx_state", columnList = "state"),
                 @Index(name = "idx_tx_package_id", columnList = "package_id")
@@ -19,43 +19,29 @@ import java.util.UUID;
 public class TransactionEntity {
 
     @Id
-    @GeneratedValue
-    private UUID id;
+    @Column(length = 36)
+    private String id = UUID.randomUUID().toString();
 
     @Version
     private long version;
 
-    /**
-     * Example: PKG_20250101_000123.tar
-     */
-    @Column(name = "package_id", nullable = false)
-    private String packageId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "package_id")
+    private PackageEntity airgapPackage;
 
-    /**
-     * Transaction lifecycle state
-     */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TransactionState state = TransactionState.STARTED;
 
-    /**
-     * Business timestamps
-     */
-    @Column(name = "start_ts", nullable = false, updatable = false)
+    @Column(name = "start_ts", nullable = false)
     private Instant startTs;
 
-    @Column(name = "end_ts")
+    @Column(name = "end_ts", nullable = true)
     private Instant endTs;
 
-    /**
-     * Text for errors
-     */
-    @Column(name = "note")
+    @Column(name = "note", nullable = true)
     private String note;
 
-    /**
-     * Audit timestamps
-     */
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -64,9 +50,7 @@ public class TransactionEntity {
     @Column(nullable = false)
     private Instant updatedAt;
 
-    public UUID getId() {
-        return id;
-    }
+    public String getId() { return id; }
 
     public long getVersion() {
         return version;
@@ -74,14 +58,6 @@ public class TransactionEntity {
 
     public void setVersion(long version) {
         this.version = version;
-    }
-
-    public String getPackageId() {
-        return packageId;
-    }
-
-    public void setPackageId(String packageId) {
-        this.packageId = packageId;
     }
 
     public TransactionState getState() {
@@ -131,5 +107,9 @@ public class TransactionEntity {
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
     }
+
+    public PackageEntity getAirgapPackage() { return airgapPackage; }
+    public void setAirgapPackage(PackageEntity airgapPackage) { this.airgapPackage = airgapPackage; }
+
 }
 

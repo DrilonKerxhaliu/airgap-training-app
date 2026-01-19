@@ -17,6 +17,8 @@ public class PackageDto {
     public Instant transactionStartTime;
     public Instant transactionStopTime;
 
+    public Instant exportedAt;
+
     public static PackageDto from(PackageEntity p) {
         PackageDto dto = new PackageDto();
         dto.id = p.getId();
