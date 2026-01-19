@@ -15,6 +15,7 @@ import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.TransactionRepository;
 import it.egeos.cut3g.airgap.service.files.FileDiscoveryService;
 import it.egeos.cut3g.airgap.service.packageing.PackagingService;
+import it.egeos.cut3g.airgap.service.tar.TarExtractService;
 import it.egeos.cut3g.airgap.service.tar.TarListingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,9 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -65,50 +64,45 @@ public class DownstreamService {
     @Autowired
     private FileDiscoveryService fileDiscoveryService;
 
-    @Value("${airgap.collect.in}")
-    private String collectIn;
-
-    // GET /airgap/downstream/package/list
     public List<PackageDto> listReadyForDownload() {
         List<PackageEntity> pkgs = packageRepository.findByStates(List.of(PackageState.CREATED));
         return pkgs.stream().map(PackageDto::from).collect(Collectors.toList());
     }
 
-    // GET /airgap/downstream/package/content/{Package_ID}
     public PackageContentResponse tarContent(String packageId) {
         PackageEntity pkg = packageRepository.findById(packageId)
                 .orElseThrow(() -> new PackageNotFoundException(packageId));
 
         Path tarPath = Paths.get(pkg.getPackagePath());
-        //Unzip tar to get files
         if (!Files.exists(tarPath)) {
             throw new PackageFileNotFoundException(tarPath.toString());
         }
 
-        try {
-            PackageContentResponse pkgResp = new PackageContentResponse();
-            pkgResp.packageId = pkg.getId();
-            pkgResp.files = tarListingService.listEntries(tarPath);
-            return pkgResp;
+        try{
+        List<FileContentDto> files = tarListingService.listFilesFromSubTars(tarPath);
+            PackageContentResponse resp = new PackageContentResponse();
+            resp.packageId = pkg.getId();
+            resp.packageName = pkg.getPackageName();
+            resp.files = files;
+
+            return resp;
+
         } catch (IOException e) {
-            throw new DownstreamIOException("Unable to read tar content: " + e.getMessage(), e);
+            throw new DownstreamIOException("Unable to extract/read tar content: " + e.getMessage(), e);
+
         }
     }
 
-    // GET /airgap/downstream/package/content/latest
     public LatestContentResponse getLatestFolderContent() {
         return fileDiscoveryService.latestFolderContentGrouped();
     }
 
-    // GET /airgap/downstream/package/{Package_ID}
     @Transactional
 public ResponseEntity<FileSystemResource> downloadExistingPackage(String packageId) {
     PackageEntity pkg = packageRepository.findById(packageId)
             .orElseThrow(() -> new PackageNotFoundException(packageId));
 
         Path tarPath = Paths.get(pkg.getPackagePath());
-
-
         TransactionEntity tx = startTransaction(pkg.getId());
         try {
             markExported(pkg);
@@ -123,19 +117,17 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         }
     }
 
-    // GET /airgap/downstream/package/latest
     @Transactional
     public ResponseEntity<FileSystemResource> generateAndDeliverLatest() {
-        TransactionEntity tx = startTransaction("latest");
-
+        TransactionEntity tx = new TransactionEntity();
         try {
             Optional<PackageEntity> created = packagingService.createLatestOrAutoPackage();
             if (created.isEmpty()) {
-                closeTransactionSuccess(tx, "No NEW files to package");
                 throw new NoNewFilesToPackageException();
             }
             PackageEntity pkg = created.get();
-            tx.setPackageId(pkg.getId());
+            tx = startTransaction(pkg.getId());
+            tx.setAirgapPackage(pkg);
             transactionRepository.save(tx);
 
             Path tarPath = Paths.get(pkg.getPackagePath());
@@ -155,7 +147,6 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         }
     }
 
-    // GET /airgap/downstream/package/history/list
     public List<PackageDto> historyList() {
         return packageRepository.findHistory()
                 .stream()
@@ -163,7 +154,6 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
                 .collect(Collectors.toList());
     }
 
-    // GET /airgap/downstream/statistics
     public DownstreamStatisticsResponse statistics() {
         DownstreamStatisticsResponse out = new DownstreamStatisticsResponse();
         out.totalPackages = packageRepository.count();
@@ -176,7 +166,6 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         return out;
     }
 
-    // GET /airgap/downstream/status
     public DownstreamStatusResponse status() {
         DownstreamStatusResponse out = new DownstreamStatusResponse();
 
@@ -186,8 +175,15 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
 
         transactionRepository.findTopByOrderByStartTsDesc().ifPresent(tx -> {
             out.lastTransactionStart = tx.getStartTs();
-            out.lastPackageId = tx.getPackageId();
-            out.lastPackageState = resolvePackageState(tx.getPackageId()).orElse(null);
+
+            if (tx.getAirgapPackage() != null) {
+                String pkgId = tx.getAirgapPackage().getId();
+                out.lastPackageId = pkgId;
+                out.lastPackageState = resolvePackageState(pkgId).orElse(null);
+            } else {
+                out.lastPackageId = null;
+                out.lastPackageState = null;
+            }
         });
 
         return out;
@@ -204,11 +200,13 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
 
     private TransactionEntity startTransaction(String packageId) {
         TransactionEntity tx = new TransactionEntity();
-        tx.setPackageId(packageId);
-        tx.setState(TransactionState.STARTED);
-        tx.setStartTs(Instant.now());
-        transactionRepository.save(tx);
-        log.info("Downstream TX STARTED id={} packageId={}", tx.getId(), packageId);
+        PackageEntity pkg = packageRepository.getReferenceById(packageId);
+            tx.setAirgapPackage(pkg);
+            tx.setStartTs(Instant.now());
+            tx.setState(TransactionState.STARTED);
+            tx.setStartTs(Instant.now());
+            transactionRepository.save(tx);
+            log.info("Downstream TX STARTED id={} packageId={}", tx.getId(), packageId);
         return tx;
     }
 
@@ -217,7 +215,9 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         tx.setEndTs(Instant.now());
         tx.setNote(note);
         transactionRepository.save(tx);
-        log.info("Downstream TX COMPLETED id={} packageId={}", tx.getId(), tx.getPackageId());
+        log.info("Downstream TX COMPLETED id={} packageId={}",
+                tx.getId(), tx.getAirgapPackage() != null ? tx.getAirgapPackage().getId() : null
+        );
     }
 
     private void closeTransactionFailure(TransactionEntity tx, String note) {
@@ -229,11 +229,7 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         } catch (Exception e) {
             log.error("CRITICAL: Unable to persist FAILED transaction state for txId={}", tx.getId(), e);
         }
-
-        log.error("Downstream TX FAILED id={} packageId={} note={}",
-                tx.getId(), tx.getPackageId(), note);
     }
-
 
     private void markExported(PackageEntity pkg) {
         // Exported, downloaded by downstream

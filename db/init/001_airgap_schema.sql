@@ -28,7 +28,7 @@ CREATE TABLE t_airgap_package (
 
 CREATE TABLE t_airgap_file_item (
                                     id VARCHAR(36) PRIMARY KEY,
-                                    version BIGINT NOT NULL,
+                                    version BIGINT NOT NULL DEFAULT 0,
                                     relative_path TEXT NOT NULL,
                                     size_bytes BIGINT NOT NULL,
                                     received_time TIMESTAMP NOT NULL,
@@ -69,16 +69,22 @@ ALTER TABLE airgap.t_airgap_package
 -- DOWNSTREAM TRANSACTIONS
 -- ================================
 
-CREATE TABLE IF NOT EXISTS t_airgap_transactions (
-    id UUID PRIMARY KEY,
-    version BIGINT DEFAULT 0,
-    package_id VARCHAR(36) NOT NULL,
+CREATE TABLE t_airgap_transactions (
+    id VARCHAR(36) PRIMARY KEY,
+    version BIGINT NOT NULL DEFAULT 0,
     state VARCHAR(32) NOT NULL,
-    start_ts TIMESTAMP NOT NULL,
+    start_ts TIMESTAMP,
     end_ts TIMESTAMP,
     note TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP NOT NULL DEFAULT now()
+    updated_at TIMESTAMP NOT NULL DEFAULT now(),
+
+    package_id VARCHAR(36),
+
+    CONSTRAINT fk_tx_package
+        FOREIGN KEY (package_id)
+            REFERENCES t_airgap_package(id)
+            ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_tx_state ON t_airgap_transactions(state);
