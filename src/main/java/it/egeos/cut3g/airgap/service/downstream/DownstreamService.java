@@ -7,6 +7,7 @@ import it.egeos.cut3g.airgap.exceptions.PackageFileNotFoundException;
 import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
+import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.FileItemState;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.enums.TransactionState;
@@ -14,13 +15,12 @@ import it.egeos.cut3g.airgap.persistence.repo.FileItemRepository;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.TransactionRepository;
 import it.egeos.cut3g.airgap.service.files.FileDiscoveryService;
+import it.egeos.cut3g.airgap.service.files.TransactionService;
 import it.egeos.cut3g.airgap.service.packageing.PackagingService;
-import it.egeos.cut3g.airgap.service.tar.TarExtractService;
 import it.egeos.cut3g.airgap.service.tar.TarListingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -37,9 +37,6 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static org.springframework.http.HttpStatus.*;
 
 @Service
 public class DownstreamService {
@@ -63,6 +60,9 @@ public class DownstreamService {
 
     @Autowired
     private FileDiscoveryService fileDiscoveryService;
+
+    @Autowired
+    private TransactionService transactionService;
 
     public List<PackageDto> listReadyForDownload() {
         List<PackageEntity> pkgs = packageRepository.findByStates(List.of(PackageState.CREATED));
@@ -103,13 +103,13 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
             .orElseThrow(() -> new PackageNotFoundException(packageId));
 
         Path tarPath = Paths.get(pkg.getPackagePath());
-        TransactionEntity tx = startTransaction(pkg.getId());
+        TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM);
         try {
             markExported(pkg);
-            closeTransactionSuccess(tx, "Downloaded existing package");
+            transactionService.closeSuccess(tx, "SUCCESS: Downloaded successfully", Direction.DOWNSTREAM);
             return buildDownloadResponse(tarPath);
         } catch (RuntimeException ex) {
-            closeTransactionFailure(tx, ex.getMessage());
+            transactionService.closeFailure(tx, "FAILED: Download error", Direction.DOWNSTREAM);
             throw ex;
         }
         catch (IOException e) {
@@ -126,7 +126,7 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
                 throw new NoNewFilesToPackageException();
             }
             PackageEntity pkg = created.get();
-            tx = startTransaction(pkg.getId());
+            tx = transactionService.startTransaction(pkg.getId(), Direction.UPSTREAM);
             tx.setAirgapPackage(pkg);
             transactionRepository.save(tx);
 
@@ -136,11 +136,11 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
             }
 
             markExported(pkg);
-            closeTransactionSuccess(tx, "Generated and downloaded latest package");
+            transactionService.closeSuccess(tx, "SUCCESS: Generated and downloaded latest package", Direction.DOWNSTREAM);
             return buildDownloadResponse(tarPath);
 
         } catch (RuntimeException ex) {
-            closeTransactionFailure(tx, ex.getMessage());
+            transactionService.closeFailure(tx, "FAILED: Download package error", Direction.DOWNSTREAM);
             throw ex;
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -196,39 +196,6 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
     private Optional<String> resolvePackageState(String packageId) {
         if (packageId == null) return Optional.empty();
         return packageRepository.findById(packageId).map(p -> p.getState().name());
-    }
-
-    private TransactionEntity startTransaction(String packageId) {
-        TransactionEntity tx = new TransactionEntity();
-        PackageEntity pkg = packageRepository.getReferenceById(packageId);
-            tx.setAirgapPackage(pkg);
-            tx.setStartTs(Instant.now());
-            tx.setState(TransactionState.STARTED);
-            tx.setStartTs(Instant.now());
-            transactionRepository.save(tx);
-            log.info("Downstream TX STARTED id={} packageId={}", tx.getId(), packageId);
-        return tx;
-    }
-
-    private void closeTransactionSuccess(TransactionEntity tx, String note) {
-        tx.setState(TransactionState.COMPLETED);
-        tx.setEndTs(Instant.now());
-        tx.setNote(note);
-        transactionRepository.save(tx);
-        log.info("Downstream TX COMPLETED id={} packageId={}",
-                tx.getId(), tx.getAirgapPackage() != null ? tx.getAirgapPackage().getId() : null
-        );
-    }
-
-    private void closeTransactionFailure(TransactionEntity tx, String note) {
-        try {
-            tx.setState(TransactionState.FAILED);
-            tx.setEndTs(Instant.now());
-            tx.setNote(note);
-            transactionRepository.save(tx);
-        } catch (Exception e) {
-            log.error("CRITICAL: Unable to persist FAILED transaction state for txId={}", tx.getId(), e);
-        }
     }
 
     private void markExported(PackageEntity pkg) {

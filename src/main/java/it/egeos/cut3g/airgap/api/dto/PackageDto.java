@@ -16,7 +16,6 @@ public class PackageDto {
     public PackageState state;
     public Instant transactionStartTime;
     public Instant transactionStopTime;
-
     public Instant exportedAt;
 
     public static PackageDto from(PackageEntity p) {
@@ -27,6 +26,7 @@ public class PackageDto {
         dto.packagePath = p.getPackagePath();
         dto.md5DataTar = p.getMd5DataTar();
         dto.totalSizeBytes = p.getTotalSizeBytes();
+        dto.exportedAt = (p.getExportedAt());
         dto.state = p.getState();
         dto.transactionStartTime = p.getTransactionStartTime();
         dto.transactionStopTime = p.getTransactionStopTime();
