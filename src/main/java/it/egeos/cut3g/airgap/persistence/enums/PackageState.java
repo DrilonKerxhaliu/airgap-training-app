@@ -6,8 +6,8 @@ public enum PackageState {
     UPLOADED,
     EXPORTED,
     IMPORTED,
-    INJECTED,
     FAILED,
     REJECTED,
+    ARCHIVED,
     DELETED
 }

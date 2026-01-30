@@ -1,15 +1,15 @@
 package it.egeos.cut3g.airgap.controller;
 
 import it.egeos.cut3g.airgap.api.ApiResponse;
-import it.egeos.cut3g.airgap.api.dto.PackageContentResponse;
-import it.egeos.cut3g.airgap.api.dto.PackageDto;
-import it.egeos.cut3g.airgap.api.dto.UpstreamStatisticsResponse;
-import it.egeos.cut3g.airgap.api.dto.UpstreamStatusResponse;
+import it.egeos.cut3g.airgap.api.dto.*;
 import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
+import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
+import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.service.downstream.DownstreamService;
+import it.egeos.cut3g.airgap.service.importing.IncomingPackageImportService;
 import it.egeos.cut3g.airgap.service.upstream.UploadService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -31,6 +31,9 @@ public class UpstreamController {
 
     @Autowired
     private DownstreamService downstreamService;
+
+    @Autowired
+    private IncomingPackageImportService incomingPackageImportService;
 
     @PutMapping("/package/{packageId}")
     public ApiResponse<PackageDto> uploadPackage(@PathVariable String packageId) {
@@ -69,6 +72,20 @@ public class UpstreamController {
     @GetMapping("/status")
     public ApiResponse<UpstreamStatusResponse> status() {
         return ApiResponse.ok("OK", uploadService.status());
+    }
+
+    @PostMapping("/import/package/{packageId}")
+    public ApiResponse<ImportTransactionDto> importPackage(
+            @PathVariable String packageId) {
+
+        TransactionEntity tx =
+                incomingPackageImportService.importIncomingPackage(packageId);
+
+        return ApiResponse.ok(
+                tx.getState().name(),
+                ImportTransactionDto.from(tx, Direction.IMPORT)
+        );
+
     }
 }
 
