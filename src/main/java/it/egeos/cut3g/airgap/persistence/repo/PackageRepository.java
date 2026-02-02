@@ -34,4 +34,8 @@ public interface PackageRepository extends JpaRepository<PackageEntity, String> 
 
     @Query("select coalesce(max(p.progressiveNumber), 0) from PackageEntity p")
     long findMaxProgressiveNumber();
+
+    @Query("select p from PackageEntity p where p.state = :state and p.exportedAt < :threshold")
+    List<PackageEntity> findArchivedBefore(@Param("state") PackageState state, @Param("threshold") Instant threshold);
+
 }
