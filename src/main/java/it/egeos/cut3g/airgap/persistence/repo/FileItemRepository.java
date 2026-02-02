@@ -21,12 +21,14 @@ public interface FileItemRepository extends JpaRepository<FileItemEntity, String
     @Query(" select coalesce(sum(f.sizeBytes), 0) from FileItemEntity f where f.state = :state ")
     long sumSizeByState(@Param("state") FileItemState state);
 
-    // FolderWatcher: find-or-create by path
     Optional<FileItemEntity> findByRelativePath(String relativePath);
 
-    // debug, watcher, statistics, monitoring
     List<FileItemEntity> findByState(FileItemState state);
 
     @Query("select f from FileItemEntity f where f.airgapPackage.id = :packageId order by f.relativePath asc")
     List<FileItemEntity> findByPackageId(@Param("packageId") String packageId);
+
+    @Modifying
+    @Query("update FileItemEntity f set f.state = :state where f.airgapPackage.id = :packageId ")
+    int updateStateByPackageId(@Param("packageId") String packageId, @Param("state") FileItemState state);
 }
