@@ -18,6 +18,9 @@ public class QuartzConfig {
     @Value("${airgap.auto.size-check-interval-min}")
     private int sizeIntervalMin;
 
+    @Value("${airgap.cleanup.cron}")
+    private String cleanupCron;
+
     /**
     * AUTO (TIME-BASED) PACKAGING
     **/
@@ -64,6 +67,29 @@ public class QuartzConfig {
                         simpleSchedule()
                                 .withIntervalInMinutes(sizeIntervalMin)
                                 .repeatForever()
+                )
+                .build();
+    }
+
+    /**
+     * ARCHIVE CLEANUP (RETENTION)
+     **/
+
+    @Bean
+    public JobDetail archiveCleanupJobDetail() {
+        return newJob(ArchiveCleanupJob.class)
+                .withIdentity("archiveCleanupJob")
+                .storeDurably()
+                .build();
+    }
+
+    @Bean
+    public Trigger archiveCleanupTrigger() {
+        return newTrigger()
+                .forJob(archiveCleanupJobDetail())
+                .withIdentity("archiveCleanupTrigger")
+                .withSchedule(
+                        CronScheduleBuilder.cronSchedule(cleanupCron)
                 )
                 .build();
     }

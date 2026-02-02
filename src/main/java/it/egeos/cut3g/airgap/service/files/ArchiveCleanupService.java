@@ -1,0 +1,87 @@
+package it.egeos.cut3g.airgap.service.files;
+
+import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
+import it.egeos.cut3g.airgap.persistence.enums.PackageState;
+import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+
+@Service
+public class ArchiveCleanupService {
+
+    private static final Logger log =
+            LoggerFactory.getLogger(ArchiveCleanupService.class);
+
+    @Value("${airgap.cleanup.archive.days}")
+    private int retentionDays;
+
+    @Value("${airgap.cleanup.enabled}")
+    private boolean enabled;
+
+    private final PackageRepository packageRepository;
+
+    public ArchiveCleanupService(PackageRepository packageRepository) {
+        this.packageRepository = packageRepository;
+    }
+
+    @Transactional
+    public void cleanupArchivedPackages() {
+
+        if (!enabled) {
+            log.info("Archive cleanup disabled by configuration");
+            return;
+        }
+
+        Instant threshold =
+                Instant.now().minus(retentionDays, ChronoUnit.DAYS);
+
+        List<PackageEntity> candidates =
+                packageRepository.findArchivedBefore(
+                        PackageState.ARCHIVED,
+                        threshold
+                );
+
+        log.info("Archive cleanup started – {} candidates found", candidates.size());
+
+        for (PackageEntity pkg : candidates) {
+            deleteSinglePackage(pkg);
+        }
+
+        log.info("Archive cleanup completed");
+    }
+
+    private void deleteSinglePackage(PackageEntity pkg) {
+        Path tarPath = Paths.get(pkg.getPackagePath());
+
+        try {
+            if (Files.exists(tarPath)) {
+                Files.delete(tarPath);
+                log.info("Deleted archived file {}", tarPath);
+            } else {
+                log.warn("Archive file not found: {}", tarPath);
+            }
+
+            pkg.setState(PackageState.DELETED);
+            pkg.setNotes("Deleted by archive cleanup job");
+            pkg.setExportedAt(Instant.now()); // last state change
+            packageRepository.save(pkg);
+
+        } catch (Exception e) {
+            log.error(
+                    "Failed to cleanup archived package {}",
+                    pkg.getId(),
+                    e
+            );
+        }
+    }
+}
