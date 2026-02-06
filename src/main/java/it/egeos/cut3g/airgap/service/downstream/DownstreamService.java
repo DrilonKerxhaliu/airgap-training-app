@@ -16,7 +16,7 @@ import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.TransactionRepository;
 import it.egeos.cut3g.airgap.service.files.FileDiscoveryService;
 import it.egeos.cut3g.airgap.service.files.TransactionService;
-import it.egeos.cut3g.airgap.service.packageing.PackagingService;
+import it.egeos.cut3g.airgap.service.packaging.PackagingService;
 import it.egeos.cut3g.airgap.service.tar.TarListingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

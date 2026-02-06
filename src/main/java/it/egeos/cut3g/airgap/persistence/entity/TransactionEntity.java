@@ -1,5 +1,6 @@
 package it.egeos.cut3g.airgap.persistence.entity;
 
+import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.enums.TransactionState;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -28,6 +29,10 @@ public class TransactionEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "package_id")
     private PackageEntity airgapPackage;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "package_state", nullable = true)
+    private PackageState packageState;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -110,6 +115,10 @@ public class TransactionEntity {
 
     public PackageEntity getAirgapPackage() { return airgapPackage; }
     public void setAirgapPackage(PackageEntity airgapPackage) { this.airgapPackage = airgapPackage; }
+
+    public PackageState getPackageState() { return packageState;}
+
+    public void setPackageState(PackageState packageState) { this.packageState = packageState;}
 
 }
 

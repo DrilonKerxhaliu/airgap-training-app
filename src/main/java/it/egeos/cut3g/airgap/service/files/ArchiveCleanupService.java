@@ -1,10 +1,13 @@
 package it.egeos.cut3g.airgap.service.files;
 
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
+import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
+import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,11 +31,11 @@ public class ArchiveCleanupService {
     @Value("${airgap.cleanup.enabled}")
     private boolean enabled;
 
-    private final PackageRepository packageRepository;
+    @Autowired
+    private PackageRepository packageRepository;
 
-    public ArchiveCleanupService(PackageRepository packageRepository) {
-        this.packageRepository = packageRepository;
-    }
+    @Autowired
+    private TransactionService transactionService;
 
     @Transactional
     public void cleanupArchivedPackages() {
@@ -61,6 +64,15 @@ public class ArchiveCleanupService {
     }
 
     private void deleteSinglePackage(PackageEntity pkg) {
+        TransactionEntity tx =
+               transactionService.startTransaction(
+                        pkg.getId(),
+                        Direction.CLEANUP
+                );
+
+        tx.setPackageState(pkg.getState());
+
+
         Path tarPath = Paths.get(pkg.getPackagePath());
 
         try {
@@ -76,11 +88,23 @@ public class ArchiveCleanupService {
             pkg.setExportedAt(Instant.now()); // last state change
             packageRepository.save(pkg);
 
+            transactionService.closeSuccess(
+                    tx,
+                    "Package deleted by archive cleanup",
+                    Direction.CLEANUP
+            );
+
         } catch (Exception e) {
             log.error(
                     "Failed to cleanup archived package {}",
                     pkg.getId(),
                     e
+            );
+
+            transactionService.closeFailure(
+                    tx,
+                    e.getMessage(),
+                    Direction.CLEANUP
             );
         }
     }

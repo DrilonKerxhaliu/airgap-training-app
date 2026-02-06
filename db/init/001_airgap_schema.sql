@@ -73,19 +73,27 @@ CREATE TABLE t_airgap_transactions (
     id VARCHAR(36) PRIMARY KEY,
     version BIGINT NOT NULL DEFAULT 0,
     state VARCHAR(32) NOT NULL,
-    start_ts TIMESTAMP,
+    start_ts TIMESTAMP NOT NULL,
     end_ts TIMESTAMP,
     note TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP NOT NULL DEFAULT now(),
 
     package_id VARCHAR(36),
+    package_state VARCHAR(32),
 
     CONSTRAINT fk_tx_package
         FOREIGN KEY (package_id)
-            REFERENCES t_airgap_package(id)
+            REFERENCES airgap.t_airgap_package(id)
             ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_tx_state ON t_airgap_transactions(state);
-CREATE INDEX IF NOT EXISTS idx_tx_package_id ON t_airgap_transactions(package_id);
+CREATE INDEX idx_tx_state
+    ON airgap.t_airgap_transactions(state);
+
+CREATE INDEX idx_tx_package_id
+    ON airgap.t_airgap_transactions(package_id);
+
+CREATE INDEX idx_tx_package_state
+    ON airgap.t_airgap_transactions(package_state);
+
