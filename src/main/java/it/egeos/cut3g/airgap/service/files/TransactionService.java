@@ -31,6 +31,7 @@ public class TransactionService {
         PackageEntity pkg = packageRepository.getReferenceById(packageId);
         tx.setAirgapPackage(pkg);
         tx.setStartTs(Instant.now());
+        tx.setPackageState(pkg.getState());
         tx.setState(TransactionState.STARTED);
 
         transactionRepository.save(tx);
@@ -42,30 +43,41 @@ public class TransactionService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void closeSuccess(TransactionEntity tx, String note, Direction direction) {
+        PackageEntity pkg = tx.getAirgapPackage();
         tx.setState(TransactionState.COMPLETED);
         tx.setEndTs(Instant.now());
         tx.setNote(note);
+        if (pkg != null) {
+        tx.setPackageState(pkg.getState());
+    }
         transactionRepository.save(tx);
 
-        log.info("{} TX COMPLETED id={} packageId={}",
+        log.info("{} TX COMPLETED id={} packageId={} packageState={}",
                 direction,
                 tx.getId(),
-                tx.getAirgapPackage() != null ? tx.getAirgapPackage().getId() : null
+                pkg != null ? pkg.getId() : null,
+                tx.getPackageState()
         );
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void closeFailure(TransactionEntity tx, String note, Direction direction) {
         try {
+            PackageEntity pkg = tx.getAirgapPackage();
             tx.setState(TransactionState.FAILED);
             tx.setEndTs(Instant.now());
             tx.setNote(note);
+
+            if (pkg != null) {
+            tx.setPackageState(pkg.getState());
+        }
             transactionRepository.save(tx);
 
-            log.warn("{} TX FAILED id={} packageId={}",
+            log.warn("{} TX FAILED id={} packageId={} packageState={}",
                     direction,
                     tx.getId(),
-                    tx.getAirgapPackage() != null ? tx.getAirgapPackage().getId() : null
+                    pkg != null ? pkg.getId() : null,
+                    tx.getPackageState()
             );
         } catch (Exception e) {
             log.error("CRITICAL: Unable to persist FAILED transaction state for txId={}", tx.getId(), e);

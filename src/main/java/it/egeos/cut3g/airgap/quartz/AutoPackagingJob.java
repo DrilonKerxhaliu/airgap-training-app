@@ -2,7 +2,7 @@ package it.egeos.cut3g.airgap.quartz;
 
 import it.egeos.cut3g.airgap.persistence.enums.FileItemState;
 import it.egeos.cut3g.airgap.persistence.repo.FileItemRepository;
-import it.egeos.cut3g.airgap.service.packageing.PackagingService;
+import it.egeos.cut3g.airgap.service.packaging.PackagingService;
 import org.quartz.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

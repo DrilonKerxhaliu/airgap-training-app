@@ -1,4 +1,4 @@
-package it.egeos.cut3g.airgap.service.packageing;
+package it.egeos.cut3g.airgap.service.packaging;
 
 import com.google.gson.Gson;
 import it.egeos.cut3g.airgap.persistence.entity.FileItemEntity;

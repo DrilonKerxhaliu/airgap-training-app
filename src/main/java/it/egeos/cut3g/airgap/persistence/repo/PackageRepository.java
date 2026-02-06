@@ -1,5 +1,6 @@
 package it.egeos.cut3g.airgap.persistence.repo;
 
+import it.egeos.cut3g.airgap.api.dto.PackageStateStatsDto;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -37,5 +38,9 @@ public interface PackageRepository extends JpaRepository<PackageEntity, String> 
 
     @Query("select p from PackageEntity p where p.state = :state and p.exportedAt < :threshold")
     List<PackageEntity> findArchivedBefore(@Param("state") PackageState state, @Param("threshold") Instant threshold);
+
+    @Query("select new it.egeos.cut3g.airgap.api.dto.PackageStateStatsDto(p.state, count(p)) from PackageEntity p group by p.state")
+    List<PackageStateStatsDto> countPackagesByState();
+
 
 }
