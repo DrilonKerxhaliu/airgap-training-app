@@ -20,7 +20,8 @@ CREATE TABLE t_airgap_package (
                                   package_path TEXT NOT NULL,
                                   md5_data_tar VARCHAR(64) NOT NULL,
                                   total_size_bytes BIGINT NOT NULL,
-                                  notes TEXT
+                                  notes TEXT,
+                                  created_by VARCHAR(64) NOT NULL
 );
 -- ================================
 -- FILE ITEM
@@ -81,6 +82,7 @@ CREATE TABLE t_airgap_transactions (
 
     package_id VARCHAR(36),
     package_state VARCHAR(32),
+    initiated_by VARCHAR(64) NOT NULL,
 
     CONSTRAINT fk_tx_package
         FOREIGN KEY (package_id)

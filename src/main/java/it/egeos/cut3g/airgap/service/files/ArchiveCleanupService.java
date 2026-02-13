@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Files;
@@ -37,7 +38,7 @@ public class ArchiveCleanupService {
     @Autowired
     private TransactionService transactionService;
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void cleanupArchivedPackages() {
 
         if (!enabled) {
@@ -67,7 +68,8 @@ public class ArchiveCleanupService {
         TransactionEntity tx =
                transactionService.startTransaction(
                         pkg.getId(),
-                        Direction.CLEANUP
+                        Direction.CLEANUP,
+                        null
                 );
 
         tx.setPackageState(pkg.getState());
@@ -89,7 +91,7 @@ public class ArchiveCleanupService {
             packageRepository.save(pkg);
 
             transactionService.closeSuccess(
-                    tx,
+                    tx.getId(),
                     "Package deleted by archive cleanup",
                     Direction.CLEANUP
             );
@@ -102,9 +104,10 @@ public class ArchiveCleanupService {
             );
 
             transactionService.closeFailure(
-                    tx,
+                    tx.getId(),
                     e.getMessage(),
-                    Direction.CLEANUP
+                    Direction.CLEANUP,
+                    null
             );
         }
     }

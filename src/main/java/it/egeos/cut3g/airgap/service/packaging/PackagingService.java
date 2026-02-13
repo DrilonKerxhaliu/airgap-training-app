@@ -1,6 +1,7 @@
 package it.egeos.cut3g.airgap.service.packaging;
 
 import com.google.gson.Gson;
+import it.egeos.cut3g.airgap.api.dto.FileEventDto;
 import it.egeos.cut3g.airgap.persistence.entity.FileItemEntity;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.FileItemState;
@@ -8,6 +9,7 @@ import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.repo.FileItemRepository;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.service.crypto.CryptoService;
+import it.egeos.cut3g.airgap.service.files.FileSseService;
 import it.egeos.cut3g.airgap.service.manifest.ManifestFileItem;
 import it.egeos.cut3g.airgap.service.manifest.PackageManifest;
 import it.egeos.cut3g.airgap.service.tar.TarService;
@@ -19,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -52,14 +55,17 @@ public class PackagingService {
     @Autowired
     private CryptoService cryptoService;
 
+    @Autowired
+    private FileSseService fileSseService;
+
     private final Gson gson = new Gson();
 
     /**
      * LATEST = on-demand packaging triggered by REST.
      * Uses PESSIMISTIC_WRITE locking via repository query.
      */
-    @Transactional
-    public Optional<PackageEntity> createLatestOrAutoPackage() {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Optional<PackageEntity> createLatestOrAutoPackage( String username) {
         log.info("Start creating LATEST or AUTO package! ");
 
         Instant start = Instant.now();
@@ -84,6 +90,7 @@ public class PackagingService {
         pkg.setTransactionStopTime(stop);
         pkg.setPackageName(pkgName);
         pkg.setState(PackageState.NEW);
+        pkg.setCreatedBy(username != null ? username : "auto");
 
         for (FileItemEntity f : newFiles) {
             f.setAirgapPackage(pkg);
@@ -133,8 +140,15 @@ public class PackagingService {
         log.info("Saved package with id={}", pkg.getId());
         for (FileItemEntity f : newFiles) {
             f.setState(FileItemState.PACKED);
-        }
 
+            FileEventDto dto = new FileEventDto();
+            dto.setId(f.getId());
+            dto.setState(FileItemState.PACKED);
+
+            fileSseService.publish(dto);
+
+
+        }
         fileItemRepository.saveAll(newFiles);
 
         log.info("Created LATEST or AUTO package {} with {} files", pkgName, newFiles.size());

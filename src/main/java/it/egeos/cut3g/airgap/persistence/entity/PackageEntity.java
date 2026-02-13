@@ -47,10 +47,15 @@ public class PackageEntity {
     @Column(name = "notes", nullable = true)
     private String notes;
 
+    @Column(name = "created_by", length = 64, nullable = false)
+    private String createdBy;
+
     @OneToMany(mappedBy = "airgapPackage", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<FileItemEntity> files = new ArrayList<>();
 
-    public String getId() { return id; }
+    public String getId() {
+        return id;
+    }
 
     public PackageState getState() {
         return state;
@@ -60,17 +65,37 @@ public class PackageEntity {
         this.state = state;
     }
 
-    public long getProgressiveNumber() { return progressiveNumber; }
-    public void setProgressiveNumber(long progressiveNumber) { this.progressiveNumber = progressiveNumber; }
+    public long getProgressiveNumber() {
+        return progressiveNumber;
+    }
 
-    public Instant getTransactionStartTime() { return transactionStartTime; }
-    public void setTransactionStartTime(Instant transactionStartTime) { this.transactionStartTime = transactionStartTime; }
+    public void setProgressiveNumber(long progressiveNumber) {
+        this.progressiveNumber = progressiveNumber;
+    }
 
-    public Instant getTransactionStopTime() { return transactionStopTime; }
-    public void setTransactionStopTime(Instant transactionStopTime) { this.transactionStopTime = transactionStopTime; }
+    public Instant getTransactionStartTime() {
+        return transactionStartTime;
+    }
 
-    public String getPackageName() { return packageName; }
-    public void setPackageName(String packageName) { this.packageName = packageName; }
+    public void setTransactionStartTime(Instant transactionStartTime) {
+        this.transactionStartTime = transactionStartTime;
+    }
+
+    public Instant getTransactionStopTime() {
+        return transactionStopTime;
+    }
+
+    public void setTransactionStopTime(Instant transactionStopTime) {
+        this.transactionStopTime = transactionStopTime;
+    }
+
+    public String getPackageName() {
+        return packageName;
+    }
+
+    public void setPackageName(String packageName) {
+        this.packageName = packageName;
+    }
 
     public Instant getExportedAt() {
         return exportedAt;
@@ -80,18 +105,51 @@ public class PackageEntity {
         this.exportedAt = exportedAt;
     }
 
-    public String getPackagePath() { return packagePath; }
-    public void setPackagePath(String packagePath) { this.packagePath = packagePath; }
+    public String getPackagePath() {
+        return packagePath;
+    }
 
-    public String getMd5DataTar() { return md5DataTar; }
-    public void setMd5DataTar(String md5DataTar) { this.md5DataTar = md5DataTar; }
+    public void setPackagePath(String packagePath) {
+        this.packagePath = packagePath;
+    }
 
-    public long getTotalSizeBytes() { return totalSizeBytes; }
-    public void setTotalSizeBytes(long totalSizeBytes) { this.totalSizeBytes = totalSizeBytes; }
+    public String getMd5DataTar() {
+        return md5DataTar;
+    }
 
-    public List<FileItemEntity> getFiles() { return files; }
-    public void setFiles(List<FileItemEntity> files) { this.files = files; }
+    public void setMd5DataTar(String md5DataTar) {
+        this.md5DataTar = md5DataTar;
+    }
 
-    public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
+    public long getTotalSizeBytes() {
+        return totalSizeBytes;
+    }
+
+    public void setTotalSizeBytes(long totalSizeBytes) {
+        this.totalSizeBytes = totalSizeBytes;
+    }
+
+    public List<FileItemEntity> getFiles() {
+        return files;
+    }
+
+    public void setFiles(List<FileItemEntity> files) {
+        this.files = files;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
 }

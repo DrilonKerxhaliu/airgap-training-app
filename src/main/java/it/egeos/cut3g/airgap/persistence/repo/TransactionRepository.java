@@ -9,13 +9,10 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
-public interface TransactionRepository extends JpaRepository<TransactionEntity, UUID> {
+public interface TransactionRepository extends JpaRepository<TransactionEntity, String> {
 
     boolean existsByState(TransactionState state);
-
-    Optional<TransactionEntity> findTopByStateOrderByStartTsDesc(TransactionState state);
 
     Optional<TransactionEntity> findTopByOrderByStartTsDesc();
 

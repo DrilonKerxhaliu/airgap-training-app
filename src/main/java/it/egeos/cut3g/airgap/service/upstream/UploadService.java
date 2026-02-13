@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
@@ -48,8 +49,8 @@ public class UploadService {
     @Autowired
     private TransactionService transactionService;
 
-    @Transactional
-    public PackageEntity uploadPackage(String packageId) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public PackageEntity uploadPackage(String packageId, String username) {
         PackageEntity pkg = packageRepository.findById(packageId)
                 .orElseThrow(() -> new PackageNotFoundException(packageId));
 
@@ -64,7 +65,7 @@ public class UploadService {
             throw new PackageFileNotFoundException(sourcePath.toString());
         }
 
-        TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.UPSTREAM);
+        TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.UPSTREAM, username);
 
         try {
             Path incomingBase = Paths.get(incomingDir).toAbsolutePath().normalize();
@@ -93,14 +94,14 @@ public class UploadService {
 
             PackageEntity saved = packageRepository.save(pkg);
 
-            transactionService.closeSuccess(tx, "SUCCESS: Uploaded successfully", Direction.UPSTREAM);
+            transactionService.closeSuccess(tx.getId(), "SUCCESS: Uploaded successfully", Direction.UPSTREAM);
 
             log.info("Package {} uploaded successfully", packageId);
 
             return saved;
 
         } catch (IOException e) {
-            transactionService.closeFailure(tx, "FAILED: Upload error", Direction.UPSTREAM);
+            transactionService.closeFailure(tx.getId(), "FAILED: Upload error", Direction.UPSTREAM, username);
             log.error("Error while uploading package {}", packageId, e);
             throw new DownstreamIOException("Error while uploading package " + packageId, e);
         }

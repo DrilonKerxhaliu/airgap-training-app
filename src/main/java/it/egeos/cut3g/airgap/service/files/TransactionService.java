@@ -3,6 +3,7 @@ package it.egeos.cut3g.airgap.service.files;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
+import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.enums.TransactionState;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.TransactionRepository;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 
 @Service
 public class TransactionService {
@@ -26,13 +28,14 @@ public class TransactionService {
     private PackageRepository packageRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public TransactionEntity startTransaction(String packageId, Direction direction) {
+    public TransactionEntity startTransaction(String packageId, Direction direction, String username) {
         TransactionEntity tx = new TransactionEntity();
         PackageEntity pkg = packageRepository.getReferenceById(packageId);
         tx.setAirgapPackage(pkg);
         tx.setStartTs(Instant.now());
         tx.setPackageState(pkg.getState());
         tx.setState(TransactionState.STARTED);
+        tx.setInitiatedBy(username != null ? username : "auto");
 
         transactionRepository.save(tx);
 
@@ -42,14 +45,15 @@ public class TransactionService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void closeSuccess(TransactionEntity tx, String note, Direction direction) {
+    public void closeSuccess(String txId, String note, Direction direction) {
+        TransactionEntity tx = transactionRepository.getReferenceById(txId);
         PackageEntity pkg = tx.getAirgapPackage();
         tx.setState(TransactionState.COMPLETED);
         tx.setEndTs(Instant.now());
         tx.setNote(note);
         if (pkg != null) {
-        tx.setPackageState(pkg.getState());
-    }
+            tx.setPackageState(pkg.getState());
+        }
         transactionRepository.save(tx);
 
         log.info("{} TX COMPLETED id={} packageId={} packageState={}",
@@ -61,16 +65,20 @@ public class TransactionService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void closeFailure(TransactionEntity tx, String note, Direction direction) {
-        try {
+    public void closeFailure(String txId, String note, Direction direction, String username) {
+
+        Optional<TransactionEntity> txById = transactionRepository.findById(txId);
+        if(!txById.isEmpty()) {
+            TransactionEntity tx = txById.get();
             PackageEntity pkg = tx.getAirgapPackage();
             tx.setState(TransactionState.FAILED);
             tx.setEndTs(Instant.now());
             tx.setNote(note);
+            tx.setInitiatedBy(username != null ? username : "auto");
 
             if (pkg != null) {
-            tx.setPackageState(pkg.getState());
-        }
+                tx.setPackageState(pkg.getState());
+            }
             transactionRepository.save(tx);
 
             log.warn("{} TX FAILED id={} packageId={} packageState={}",
@@ -79,8 +87,21 @@ public class TransactionService {
                     pkg != null ? pkg.getId() : null,
                     tx.getPackageState()
             );
-        } catch (Exception e) {
-            log.error("CRITICAL: Unable to persist FAILED transaction state for txId={}", tx.getId(), e);
+        }else{
+            TransactionEntity tx = new TransactionEntity();
+            tx.setState(TransactionState.FAILED);
+            tx.setStartTs(Instant.now());
+            tx.setEndTs(Instant.now());
+            tx.setNote(note);
+            tx.setPackageState(PackageState.FAILED);
+            tx.setInitiatedBy(username != null ? username : "auto");
+
+            transactionRepository.save(tx);
+
+            log.warn("{} TX with id={} not completed due to process failure.",
+                    direction,
+                    tx.getId()
+            );
         }
     }
 }

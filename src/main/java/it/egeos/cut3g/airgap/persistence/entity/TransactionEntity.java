@@ -55,6 +55,9 @@ public class TransactionEntity {
     @Column(nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "initiated_by", length = 64, nullable = false)
+    private String initiatedBy;
+
     public String getId() { return id; }
 
     public long getVersion() {
@@ -120,5 +123,12 @@ public class TransactionEntity {
 
     public void setPackageState(PackageState packageState) { this.packageState = packageState;}
 
+    public String getInitiatedBy() {
+        return initiatedBy;
+    }
+
+    public void setInitiatedBy(String initiatedBy) {
+        this.initiatedBy = initiatedBy;
+    }
 }
 

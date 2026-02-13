@@ -1,16 +1,12 @@
 package it.egeos.cut3g.airgap.controller;
 
-import it.egeos.cut3g.airgap.api.ApiResponse;
-import it.egeos.cut3g.airgap.api.dto.ImportTransactionDto;
-import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
-import it.egeos.cut3g.airgap.persistence.enums.Direction;
-import it.egeos.cut3g.airgap.service.importing.IncomingPackageImportService;
-import it.egeos.cut3g.airgap.service.packaging.PackagingService;
+import it.egeos.cut3g.airgap.service.files.FileSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * JSON-only REST API.
@@ -22,56 +18,10 @@ public class AirgapController {
     private static final Logger log = LoggerFactory.getLogger(AirgapController.class);
 
     @Autowired
-    private PackagingService packagingService;
+    private FileSseService sseService;
 
-    @Autowired
-    private IncomingPackageImportService incomingPackageImportService;
-
-    /**
-     * Manual LATEST trigger
-     * GET /airgap/packages/latest
-     */
-
-    /*
-    @Deprecated
-    @PostMapping("/packages/latest")
-    public ResponseEntity<?> createLatestPackage() {
-
-        log.info("Manual LATEST trigger requested");
-
-        Optional<PackageEntity> pkgOpt = packagingService.createLatestOrAutoPackage();
-
-        if (pkgOpt.isEmpty()) {
-            return ResponseEntity.ok(new ApiResponse<>(
-                    false,
-                    "No NEW files to package",
-                    null
-            ));
-        }
-
-        PackageEntity pkg = pkgOpt.get();
-
-        return ResponseEntity.ok(new ApiResponse(
-                true,
-                "Package created successfully",
-                PackageDto.from(pkg)
-        ));
+    @GetMapping(value = "file/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamFiles() {
+        return sseService.subscribe();
     }
-
-     */
-
-    @PostMapping("/import/package/{packageId}")
-public ApiResponse<ImportTransactionDto> importPackage(
-        @PathVariable String packageId) {
-
-    TransactionEntity tx =
-            incomingPackageImportService.importIncomingPackage(packageId);
-
-    return ApiResponse.ok(
-            tx.getState().name(),
-            ImportTransactionDto.from(tx, Direction.IMPORT)
-    );
-}
-
-
 }

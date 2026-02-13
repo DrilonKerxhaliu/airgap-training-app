@@ -2,6 +2,7 @@ package it.egeos.cut3g.airgap.controller;
 
 import it.egeos.cut3g.airgap.api.ApiResponse;
 import it.egeos.cut3g.airgap.api.dto.*;
+import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.service.downstream.DownstreamService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -34,12 +35,16 @@ public class DownstreamController {
         return ApiResponse.ok("OK", downstreamService.getLatestFolderContent());
     }
 
-    @GetMapping(value = "/package/{idOrLatest}", produces = MediaType.ALL_VALUE)
-    public ResponseEntity<?> downloadOrLatest(@PathVariable String idOrLatest) {
-        if ("latest".equalsIgnoreCase(idOrLatest)) {
-            return downstreamService.generateAndDeliverLatest();
-        }
-        return downstreamService.downloadExistingPackage(idOrLatest);
+    @GetMapping(value = "/package/{packageId}/download", produces = MediaType.ALL_VALUE)
+    public ResponseEntity<?> downloadPackage(@PathVariable String idOrLatest,
+                                              @RequestParam(value = "username", required = false) String username) {
+        return downstreamService.downloadExistingPackage(idOrLatest, username);
+    }
+
+    @GetMapping(value = "/package/latest")
+    public ApiResponse<PackageDto> createLatest(@RequestParam(value = "username", required = false) String username) {
+        PackageEntity pkg = downstreamService.generateAndDeliverLatest(username);
+        return ApiResponse.ok("OK", PackageDto.from(pkg));
     }
 
     @GetMapping("/package/history/list")

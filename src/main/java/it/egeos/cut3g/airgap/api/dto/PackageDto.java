@@ -17,6 +17,7 @@ public class PackageDto {
     public Instant transactionStartTime;
     public Instant transactionStopTime;
     public Instant exportedAt;
+    public String createdBy;
 
     public static PackageDto from(PackageEntity p) {
         PackageDto dto = new PackageDto();
@@ -30,6 +31,7 @@ public class PackageDto {
         dto.state = p.getState();
         dto.transactionStartTime = p.getTransactionStartTime();
         dto.transactionStopTime = p.getTransactionStopTime();
+        dto.createdBy = p.getCreatedBy();
         return dto;
     }
 }
