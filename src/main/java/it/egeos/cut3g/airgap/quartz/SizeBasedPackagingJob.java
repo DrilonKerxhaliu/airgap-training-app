@@ -32,7 +32,7 @@ public class SizeBasedPackagingJob implements Job {
         long threshold = maxMb;
 
         if (totalSize >= threshold) {
-            packagingService.createLatestOrAutoPackage();
+            packagingService.createLatestOrAutoPackage("auto");
         }
     }
 }

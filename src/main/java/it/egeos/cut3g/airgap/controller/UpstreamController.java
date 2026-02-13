@@ -36,8 +36,9 @@ public class UpstreamController {
     private IncomingPackageImportService incomingPackageImportService;
 
     @PutMapping("/package/{packageId}")
-    public ApiResponse<PackageDto> uploadPackage(@PathVariable String packageId) {
-        PackageEntity pkg = uploadService.uploadPackage(packageId);
+    public ApiResponse<PackageDto> uploadPackage(@PathVariable String packageId,
+                                                 @RequestParam(value = "username", required = false) String username) {
+        PackageEntity pkg = uploadService.uploadPackage(packageId, username);
         return ApiResponse.ok("OK", PackageDto.from(pkg));
     }
 
@@ -76,10 +77,11 @@ public class UpstreamController {
 
     @PostMapping("/import/package/{packageId}")
     public ApiResponse<ImportTransactionDto> importPackage(
-            @PathVariable String packageId) {
+            @PathVariable String packageId,
+            @RequestParam(value = "username", required = false) String username) {
 
         TransactionEntity tx =
-                incomingPackageImportService.importIncomingPackage(packageId);
+                incomingPackageImportService.importIncomingPackage(packageId, username);
 
         return ApiResponse.ok(
                 tx.getState().name(),

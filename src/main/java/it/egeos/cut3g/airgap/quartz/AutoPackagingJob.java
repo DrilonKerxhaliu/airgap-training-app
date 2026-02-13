@@ -27,7 +27,7 @@ public class AutoPackagingJob implements Job {
         if (newCount == 0) {
             return;
         }
-        packagingService.createLatestOrAutoPackage();
+        packagingService.createLatestOrAutoPackage("auto");
     }
 }
 

@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.stereotype.Service;
 
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -72,8 +73,8 @@ public class IncomingPackageImportService {
      * - unpack + deliver to downstream.out
      * - audit + archive
      */
-    @Transactional
-    public TransactionEntity importIncomingPackage(String packageId) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public TransactionEntity importIncomingPackage(String packageId, String username) {
 
 
     PackageEntity pkg = packageRepository.findById(packageId)
@@ -97,7 +98,7 @@ public class IncomingPackageImportService {
 
     // 2️⃣ Start IMPORT transaction
     TransactionEntity tx =
-            transactionService.startTransaction(packageId, Direction.IMPORT);
+            transactionService.startTransaction(packageId, Direction.IMPORT, username);
 
     Path workDir = Paths.get(unpackWorkDir).resolve(packageId);
 
@@ -114,9 +115,7 @@ public class IncomingPackageImportService {
         );
 
         // ARCHIVE TAR (MOVE = delete from UPLOAD)
-        Path archiveRoot = Paths.get(archiveDir)
-                .toAbsolutePath()
-                .normalize();
+        Path archiveRoot = Paths.get(archiveDir).normalize();
 
         Files.createDirectories(archiveRoot);
         Path archivedTar = archiveRoot.resolve(tarPath.getFileName());
@@ -130,13 +129,13 @@ public class IncomingPackageImportService {
         // PACKAGE → ARCHIVED
         markPackageArchived(pkg, archivedTar, "Archived successfully" );
         // TX → COMPLETED
-        transactionService.closeSuccess(tx, "IMPORTED + ARCHIVED successfully", Direction.IMPORT);
+        transactionService.closeSuccess(tx.getId(), "IMPORTED + ARCHIVED successfully", Direction.IMPORT);
         cleanupWorkDir(workDir);
         return tx;
 
     } catch (Exception ex) {
         log.error("FAILED importing package {}", packageId, ex);
-        transactionService.closeFailure(tx, ex.getMessage(), Direction.IMPORT);
+        transactionService.closeFailure(tx.getId(), ex.getMessage(), Direction.IMPORT, username);
             return tx;
         }
     }

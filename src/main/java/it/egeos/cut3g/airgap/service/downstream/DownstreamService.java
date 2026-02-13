@@ -98,18 +98,23 @@ public class DownstreamService {
     }
 
     @Transactional
-public ResponseEntity<FileSystemResource> downloadExistingPackage(String packageId) {
+public ResponseEntity<FileSystemResource> downloadExistingPackage(String packageId, String username) {
     PackageEntity pkg = packageRepository.findById(packageId)
             .orElseThrow(() -> new PackageNotFoundException(packageId));
 
         Path tarPath = Paths.get(pkg.getPackagePath());
-        TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM);
+        TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM, username);
         try {
             markExported(pkg);
-            transactionService.closeSuccess(tx, "SUCCESS: Downloaded successfully", Direction.DOWNSTREAM);
-            return buildDownloadResponse(tarPath);
+            transactionService.closeSuccess(tx.getId(), "SUCCESS: Downloaded successfully", Direction.DOWNSTREAM);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + pkg.getPackageName() + ".tar\"")
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .contentLength(Files.size(tarPath))
+                    .body(new FileSystemResource(tarPath));
         } catch (RuntimeException ex) {
-            transactionService.closeFailure(tx, "FAILED: Download error", Direction.DOWNSTREAM);
+            transactionService.closeFailure(tx.getId(), "FAILED: Download error", Direction.DOWNSTREAM, username);
             throw ex;
         }
         catch (IOException e) {
@@ -118,17 +123,15 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
     }
 
     @Transactional
-    public ResponseEntity<FileSystemResource> generateAndDeliverLatest() {
+    public PackageEntity generateAndDeliverLatest(String username) {
         TransactionEntity tx = new TransactionEntity();
         try {
-            Optional<PackageEntity> created = packagingService.createLatestOrAutoPackage();
+            Optional<PackageEntity> created = packagingService.createLatestOrAutoPackage(username);
             if (created.isEmpty()) {
                 throw new NoNewFilesToPackageException();
             }
             PackageEntity pkg = created.get();
-            tx = transactionService.startTransaction(pkg.getId(), Direction.UPSTREAM);
-            tx.setAirgapPackage(pkg);
-            transactionRepository.save(tx);
+            tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM, username);
 
             Path tarPath = Paths.get(pkg.getPackagePath());
             if (!Files.exists(tarPath)) {
@@ -136,14 +139,12 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
             }
 
             markExported(pkg);
-            transactionService.closeSuccess(tx, "SUCCESS: Generated and downloaded latest package", Direction.DOWNSTREAM);
-            return buildDownloadResponse(tarPath);
+            transactionService.closeSuccess(tx.getId(), "SUCCESS: Generated and downloaded latest package", Direction.DOWNSTREAM);
+            return pkg;
 
         } catch (RuntimeException ex) {
-            transactionService.closeFailure(tx, "FAILED: Download package error", Direction.DOWNSTREAM);
+            transactionService.closeFailure(tx.getId(), "FAILED: Downstream transaction failed - " + ex.getMessage(), Direction.DOWNSTREAM, username);
             throw ex;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -202,6 +203,7 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         // Exported, downloaded by downstream
         if (pkg.getExportedAt() == null) {
             pkg.setExportedAt(Instant.now());
+            pkg.setPackageName(null);
             packageRepository.save(pkg);
         }
     }

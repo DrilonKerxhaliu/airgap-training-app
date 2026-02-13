@@ -1,10 +1,13 @@
 package it.egeos.cut3g.airgap.service.watcher;
 
+import it.egeos.cut3g.airgap.api.dto.FileEventDto;
 import it.egeos.cut3g.airgap.persistence.entity.FileItemEntity;
 import it.egeos.cut3g.airgap.persistence.enums.FileItemState;
 import it.egeos.cut3g.airgap.persistence.repo.FileItemRepository;
+import it.egeos.cut3g.airgap.service.files.FileSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -26,7 +29,11 @@ public class FolderWatcherService {
     @Value("${airgap.file.stable.seconds}")
     private long stableSeconds;
 
-    private final FileItemRepository fileItemRepository;
+    @Autowired
+    private FileItemRepository fileItemRepository;
+
+    @Autowired
+    private FileSseService fileSseService;
 
     private final ExecutorService watcherExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService stabilityExecutor =
@@ -167,6 +174,19 @@ public class FolderWatcherService {
             entity.setState(state);
             log.info("Saving DB state: path={}, state={}", relativePath, state);
             FileItemEntity saved = fileItemRepository.save(entity);
+
+            FileEventDto dto = new FileEventDto();
+            dto.setId(entity.getId());
+            dto.setFolder(entity.getRelativePath().split("/")[0]);
+            dto.setFilename(entity.getRelativePath().split("/")[1]);
+            dto.setSizeKb(entity.getSizeBytes() / 1024);
+            dto.setArrivedAt(entity.getReceivedTime());
+            dto.setState(entity.getState());
+
+            fileSseService.publish(dto);
+
+
+
             log.info("Saved entity ID={}", saved.getId());
 
         } catch (IOException e) {
