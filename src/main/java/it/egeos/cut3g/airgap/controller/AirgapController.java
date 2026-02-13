@@ -12,7 +12,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * JSON-only REST API.
  */
 @RestController
-@RequestMapping(value = "/airgap", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = "/airgap")
 public class AirgapController {
 
     private static final Logger log = LoggerFactory.getLogger(AirgapController.class);
