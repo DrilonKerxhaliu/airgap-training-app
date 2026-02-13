@@ -30,13 +30,18 @@ public class TransactionService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public TransactionEntity startTransaction(String packageId, Direction direction, String username) {
         TransactionEntity tx = new TransactionEntity();
-        PackageEntity pkg = packageRepository.getReferenceById(packageId);
-        tx.setAirgapPackage(pkg);
-        tx.setStartTs(Instant.now());
-        tx.setPackageState(pkg.getState());
-        tx.setState(TransactionState.STARTED);
-        tx.setInitiatedBy(username != null ? username : "auto");
+        Optional<PackageEntity> pkgOptional = packageRepository.findById(packageId);
+        if(!pkgOptional.isEmpty()) {
+           PackageEntity pkg = pkgOptional.get();
+            tx.setAirgapPackage(pkg);
+            tx.setStartTs(Instant.now());
+            tx.setPackageState(pkg.getState());
+            tx.setState(TransactionState.STARTED);
+            tx.setInitiatedBy(username != null ? username : "auto");
 
+        }else{
+            closeFailure(tx.getId(), "Package not found: " + packageId, direction, username);
+        }
         transactionRepository.save(tx);
 
         log.info("{} TX STARTED id={} packageId={}", direction, tx.getId(), packageId);

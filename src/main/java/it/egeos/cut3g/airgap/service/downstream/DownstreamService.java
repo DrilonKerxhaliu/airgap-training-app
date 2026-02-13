@@ -203,7 +203,6 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         // Exported, downloaded by downstream
         if (pkg.getExportedAt() == null) {
             pkg.setExportedAt(Instant.now());
-            pkg.setPackageName(null);
             packageRepository.save(pkg);
         }
     }
