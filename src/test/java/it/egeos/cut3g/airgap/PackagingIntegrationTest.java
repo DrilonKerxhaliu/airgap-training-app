@@ -18,7 +18,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 class PackagingIntegrationTest {
@@ -72,7 +71,7 @@ class PackagingIntegrationTest {
         event.setId(UUID.randomUUID().toString());
         event.setFolder("/COLLECTED_DATA/IN");
         event.setFilename("PKG_20260213_001.dat");
-        event.setSizeKb(1542);
+        event.setSizeBytes(1542);
         event.setArrivedAt(Instant.now());
         event.setState(FileItemState.NEW);
 
@@ -86,7 +85,7 @@ class PackagingIntegrationTest {
             event.setId(UUID.randomUUID().toString());
             event.setFolder("/COLLECTED_DATA/IN");
             event.setFilename("FILE_" + i + ".dat");
-            event.setSizeKb(500 * i);
+            event.setSizeBytes(500 * i);
             event.setArrivedAt(Instant.now());
             event.setState(FileItemState.PACKED);
 

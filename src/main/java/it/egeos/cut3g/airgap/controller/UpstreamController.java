@@ -2,13 +2,13 @@ package it.egeos.cut3g.airgap.controller;
 
 import it.egeos.cut3g.airgap.api.ApiResponse;
 import it.egeos.cut3g.airgap.api.dto.*;
-import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.service.downstream.DownstreamService;
+import it.egeos.cut3g.airgap.service.files.ArchiveCleanupService;
 import it.egeos.cut3g.airgap.service.importing.IncomingPackageImportService;
 import it.egeos.cut3g.airgap.service.upstream.UploadService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +34,9 @@ public class UpstreamController {
 
     @Autowired
     private IncomingPackageImportService incomingPackageImportService;
+
+    @Autowired
+    private ArchiveCleanupService archiveCleanupService;
 
     @PutMapping("/package/{packageId}")
     public ApiResponse<PackageDto> uploadPackage(@PathVariable String packageId,
@@ -87,7 +90,21 @@ public class UpstreamController {
                 tx.getState().name(),
                 ImportTransactionDto.from(tx, Direction.IMPORT)
         );
-
     }
+
+    @DeleteMapping("/delete/package/{packageId}")
+    public ApiResponse<Void> deletePackageManually(
+            @PathVariable String packageId,
+            @RequestParam(value = "username", required = false) String username
+    ) {
+
+        archiveCleanupService.manualCleanupArchivedPkg(packageId, username);
+
+        return ApiResponse.ok(
+                "Package deleted manually",
+                null
+        );
+    }
+
 }
 

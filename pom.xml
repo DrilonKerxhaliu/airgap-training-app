@@ -15,7 +15,7 @@
     </description>
 
     <properties>
-        <java.version>11</java.version>
+        <java.version>17</java.version>
         <spring.boot.version>2.7.18</spring.boot.version>
         <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
     </properties>
@@ -142,6 +142,16 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <version>${spring.boot.version}</version>
+                <configuration>
+                    <mainClass>it.egeos.cut3g.airgap.AirgapServiceApplication</mainClass>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
         </plugins>

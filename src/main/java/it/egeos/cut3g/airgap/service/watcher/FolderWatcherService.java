@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -16,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.*;
 
 @Service
@@ -35,9 +37,11 @@ public class FolderWatcherService {
     @Autowired
     private FileSseService fileSseService;
 
-    private final ExecutorService watcherExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService watcherExecutor =
+            Executors.newSingleThreadExecutor(r -> new Thread(r, "folder-watcher"));
+
     private final ScheduledExecutorService stabilityExecutor =
-            Executors.newSingleThreadScheduledExecutor();
+            Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "file-stability"));
 
     /**
      * Tracks INSERT files waiting to become stable.
@@ -57,35 +61,56 @@ public class FolderWatcherService {
 
     @PostConstruct
     public void start() {
-        this.rootPath = Paths.get(collectInDir);
+        this.rootPath = Paths.get(collectInDir).toAbsolutePath().normalize();
 
         try {
             Files.createDirectories(rootPath);
-        } catch (Exception e) {
-            log.error("Unable to create/watch directory {}", collectInDir, e);
-            return;
-        }
-
-        try {
-            Files.walk(rootPath)
-                    .filter(Files::isRegularFile)
-                    .forEach(this::registerInsert);
         } catch (IOException e) {
-            log.warn("Initial scan failed for {}", rootPath, e);
+            throw new IllegalStateException(
+                    "Cannot create/watch directory " + rootPath, e);
         }
 
-        watcherExecutor.submit(this::watchLoop);
+        log.info("Starting FolderWatcher on {}", rootPath);
+
+        // initial scan (VERY IMPORTANT)
+        initialScan();
+
+        // start watcher loop (with auto-restart)
+        watcherExecutor.submit(this::watchForever);
+
+        // start stability checker
         stabilityExecutor.scheduleAtFixedRate(
                 this::checkStability,
                 stableSeconds,
                 stableSeconds,
                 TimeUnit.SECONDS
         );
-        log.info("FolderWatcher started on {}", rootPath);
+    }
+
+    private void initialScan() {
+        try {
+            Files.walk(rootPath)
+                    .filter(Files::isRegularFile)
+                    .forEach(this::registerInsert);
+            log.info("Initial scan completed for {}", rootPath);
+        } catch (IOException e) {
+            log.warn("Initial scan failed for {}", rootPath, e);
+        }
     }
 
 
     // watch filesystem
+
+    private void watchForever() {
+        while (true) {
+            try {
+                watchLoop();
+            } catch (Exception e) {
+                log.error("FolderWatcher crashed – restarting in 5s", e);
+                sleep(5);
+            }
+        }
+    }
 
     private void watchLoop() {
         try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
@@ -102,12 +127,20 @@ public class FolderWatcherService {
                     Path relative = (Path) event.context();
                     Path fullPath = watchedDir.resolve(relative).normalize();
 
+                    if (Files.isDirectory(fullPath)) {
+                        registerRecursive(fullPath, watchService);
+                        continue;
+                    }
+
                     if (!Files.isRegularFile(fullPath)) continue;
 
                     registerInsert(fullPath);
                 }
 
-                if (!key.reset()) break;
+                if (!key.reset()) {
+                    log.warn("WatchKey invalid for {}", watchedDir);
+                    break;
+                }
             }
 
         } catch (Exception e) {
@@ -119,21 +152,44 @@ public class FolderWatcherService {
 
     private void registerInsert(Path file) {
         try {
-            long size = Files.size(file);
+            long fsSize = Files.size(file);
             Instant now = Instant.now();
+            String relativePath = rootPath.relativize(file).toString();
 
-            insertingFiles.compute(file, (p, snap) -> {
-                if (snap == null) {
-                    markDbState(file, FileItemState.INSERT);
-                    return new FileSnapshot(size, now);
-                }
-                snap.update(size, now);
-                return snap;
-            });
+            FileItemEntity existing =
+                    fileItemRepository.findByRelativePath(relativePath).orElse(null);
 
-        } catch (IOException ignored) {
+            if (existing == null) {
+                log.info("New file detected: {}", relativePath);
+                markDbState(file, FileItemState.INSERT);
+                insertingFiles.put(file, new FileSnapshot(fsSize, now));
+                return;
+            }
+
+            if (existing.getState() == FileItemState.INSERT) {
+                log.info("File stuck in INSERT, re-processing: {}", relativePath);
+                markDbState(file, FileItemState.INSERT);
+                insertingFiles.put(file, new FileSnapshot(fsSize, now));
+                return;
+            }
+
+            Long dbSize = existing.getSizeBytes();
+            if (dbSize != null && dbSize == fsSize) {
+                log.debug("File unchanged, skipping: {}", relativePath);
+                return;
+            }
+
+            log.info("File updated, re-processing: {} (oldSize={}, newSize={})",
+                    relativePath, dbSize, fsSize);
+
+            markDbState(file, FileItemState.INSERT);
+            insertingFiles.put(file, new FileSnapshot(fsSize, now));
+
+        } catch (IOException e) {
+            log.warn("Unable to inspect file {}", file, e);
         }
     }
+
 
     /**
      * Periodic check: if file unchanged for stableSeconds → NEW
@@ -141,16 +197,14 @@ public class FolderWatcherService {
     private void checkStability() {
         Instant now = Instant.now();
 
-        for (Map.Entry<Path, FileSnapshot> e : insertingFiles.entrySet()) {
-            Path file = e.getKey();
-            FileSnapshot snap = e.getValue();
-
+        insertingFiles.forEach((file, snap) -> {
             if (snap.isStable(now, stableSeconds)) {
-                markDbState(file, FileItemState.NEW);
                 insertingFiles.remove(file);
-                log.info("File {} became STABLE → NEW", rootPath.relativize(file));
+                markDbState(file, FileItemState.NEW);
+                log.info("File {} became STABLE → NEW",
+                        rootPath.relativize(file));
             }
-        }
+        });
     }
 
     // DB state update
@@ -176,21 +230,54 @@ public class FolderWatcherService {
             FileItemEntity saved = fileItemRepository.save(entity);
 
             FileEventDto dto = new FileEventDto();
-            dto.setId(entity.getId());
-            dto.setFolder(entity.getRelativePath().split("/")[0]);
-            dto.setFilename(entity.getRelativePath().split("/")[1]);
-            dto.setSizeKb(entity.getSizeBytes() / 1024);
-            dto.setArrivedAt(entity.getReceivedTime());
-            dto.setState(entity.getState());
+            dto.setId(saved.getId());
+            dto.setFolder(relativePath.split("/")[0]);
+            dto.setFilename(relativePath.split("/")[1]);
+            dto.setSizeBytes(saved.getSizeBytes());
+            dto.setArrivedAt(saved.getReceivedTime());
+            dto.setState(saved.getState());
 
             fileSseService.publish(dto);
-
-
 
             log.info("Saved entity ID={}", saved.getId());
 
         } catch (IOException e) {
             log.warn("Unable to update DB state for {}", file, e);
+        }
+    }
+
+    //Periodic rescan
+    @Scheduled(fixedDelayString =
+            "${airgap.collect.rescan-ms}")
+    public void periodicRescan() {
+        initialScan();
+    }
+
+    private void registerRecursive(Path root, WatchService ws)
+            throws IOException {
+
+        if (!Files.exists(root)) {
+            return;
+        }
+
+        Files.walk(root)
+                .filter(Files::isDirectory)
+                .forEach(dir -> {
+                    try {
+                        dir.register(ws,
+                                StandardWatchEventKinds.ENTRY_CREATE,
+                                StandardWatchEventKinds.ENTRY_MODIFY);
+                        log.debug("Watching directory {}", dir);
+                    } catch (IOException e) {
+                        log.warn("Unable to watch {}", dir, e);
+                    }
+                });
+    }
+
+    private void sleep(int seconds) {
+        try {
+            Thread.sleep(seconds * 1000L);
+        } catch (InterruptedException ignored) {
         }
     }
 
@@ -216,29 +303,4 @@ public class FolderWatcherService {
             return now.minusSeconds(stableSeconds).isAfter(lastChange);
         }
     }
-
-   private void registerRecursive(Path root, WatchService ws) throws IOException {
-    if (root == null) {
-        log.error("registerRecursive called with null rootPath");
-        return;
-    }
-    if (!Files.exists(root)) {
-        log.warn("Root directory {} does not exist", root);
-        return;
-    }
-
-    Files.walk(root)
-            .filter(Files::isDirectory)
-            .forEach(dir -> {
-                try {
-                    dir.register(ws,
-                            StandardWatchEventKinds.ENTRY_CREATE,
-                            StandardWatchEventKinds.ENTRY_MODIFY);
-                } catch (IOException e) {
-                    log.warn("Unable to register {}", dir, e);
-                }
-            });
-}
-
-
 }

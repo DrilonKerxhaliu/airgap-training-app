@@ -35,9 +35,6 @@ public class IncomingPackageImportService {
 
     private static final Logger log = LoggerFactory.getLogger(IncomingPackageImportService.class);
 
-    @Value("${airgap.incoming.packages.dir}")
-    private String incomingPackagesDir;
-
     @Value("${airgap.incoming.packages.archive.dir}")
     private String archiveDir;
 
