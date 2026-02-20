@@ -143,6 +143,7 @@ public class PackagingService {
 
             FileEventDto dto = new FileEventDto();
             dto.setId(f.getId());
+            dto.setSizeBytes(f.getSizeBytes());
             dto.setState(FileItemState.PACKED);
 
             fileSseService.publish(dto);

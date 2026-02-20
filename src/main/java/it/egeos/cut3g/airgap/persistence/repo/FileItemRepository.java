@@ -23,8 +23,6 @@ public interface FileItemRepository extends JpaRepository<FileItemEntity, String
 
     Optional<FileItemEntity> findByRelativePath(String relativePath);
 
-    List<FileItemEntity> findByState(FileItemState state);
-
     @Query("select f from FileItemEntity f where f.airgapPackage.id = :packageId order by f.relativePath asc")
     List<FileItemEntity> findByPackageId(@Param("packageId") String packageId);
 

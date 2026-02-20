@@ -58,18 +58,34 @@ public class ArchiveCleanupService {
         log.info("Archive cleanup started – {} candidates found", candidates.size());
 
         for (PackageEntity pkg : candidates) {
-            deleteSinglePackage(pkg);
+            deleteSinglePackage(pkg,null);
         }
 
         log.info("Archive cleanup completed");
     }
 
-    private void deleteSinglePackage(PackageEntity pkg) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void manualCleanupArchivedPkg(String packageId, String username) {
+
+        PackageEntity pkg = packageRepository.findById(packageId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Package not found: " + packageId));
+
+        // optional domain protection
+        if (pkg.getState() == PackageState.DELETED) {
+            log.info("Package {} already deleted – skipping", packageId);
+            return;
+        }
+
+        deleteSinglePackage(pkg, username);
+    }
+
+    private void deleteSinglePackage(PackageEntity pkg, String username) {
         TransactionEntity tx =
                transactionService.startTransaction(
                         pkg.getId(),
                         Direction.CLEANUP,
-                        null
+                       username
                 );
 
         tx.setPackageState(pkg.getState());
@@ -107,7 +123,7 @@ public class ArchiveCleanupService {
                     tx.getId(),
                     e.getMessage(),
                     Direction.CLEANUP,
-                    null
+                    username
             );
         }
     }

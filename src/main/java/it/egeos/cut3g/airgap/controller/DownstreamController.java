@@ -36,9 +36,9 @@ public class DownstreamController {
     }
 
     @GetMapping(value = "/package/{packageId}/download", produces = MediaType.ALL_VALUE)
-    public ResponseEntity<?> downloadPackage(@PathVariable String idOrLatest,
+    public ResponseEntity<?> downloadPackage(@PathVariable ("packageId") String packageId,
                                               @RequestParam(value = "username", required = false) String username) {
-        return downstreamService.downloadExistingPackage(idOrLatest, username);
+        return downstreamService.downloadExistingPackage(packageId, username);
     }
 
     @GetMapping(value = "/package/latest")

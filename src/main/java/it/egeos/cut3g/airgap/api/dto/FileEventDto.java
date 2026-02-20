@@ -9,7 +9,7 @@ public class FileEventDto {
         private String id;
         private String folder;
         private String filename;
-        private long sizeKb;
+        private long sizeBytes;
         private Instant arrivedAt;
         private FileItemState state;
 
@@ -39,12 +39,12 @@ public class FileEventDto {
         this.filename = filename;
     }
 
-    public long getSizeKb() {
-        return sizeKb;
+    public long getSizeBytes() {
+        return sizeBytes;
     }
 
-    public void setSizeKb(long sizeKb) {
-        this.sizeKb = sizeKb;
+    public void setSizeBytes(long sizeBytes) {
+        this.sizeBytes = sizeBytes;
     }
 
     public Instant getArrivedAt() {
