@@ -1,0 +1,28 @@
+stages:
+  - scan
+
+variables:
+  ORG_ID: "6971641266e58de7aff48cb9"
+  GROUP_ID: "6998284f4fb2909c8f60d446"
+
+aquilax_scan:
+  stage: scan
+  image: python:3.9
+  variables:
+    GIT_URL: "https://vpsgitlab.digimat.it/${CI_PROJECT_PATH}.git"
+    AQUILAX_AUTH: "$AQUILAX_API_TOKEN"
+  script:
+    - |
+      pip install aquilax
+      aquilax ci-scan \
+        "$GIT_URL" \
+        --org-id "$ORG_ID" \
+        --group-id "$GROUP_ID"
+        
+  artifacts:
+    when: always
+    paths:
+      - results.sarif
+  only:
+    refs:
+      - main
