@@ -40,7 +40,7 @@ public class PackagingService {
     @Value("${airgap.collect.in}")
     private String collectedIn;
 
-    @Value("${airgap.incoming.packages.dir}")
+    @Value("${airgap.save.original.packages.dir}")
     private String packagesDir;
 
     @Autowired
