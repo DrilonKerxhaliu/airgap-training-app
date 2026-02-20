@@ -9,7 +9,7 @@ aquilax_scan:
   stage: scan
   image: python:3.9
   variables:
-    GIT_URL: "https://localhost/${CI_PROJECT_PATH}.git"
+    GIT_URL: "https://vpsgitlab.digimat.it/${CI_PROJECT_PATH}.git"
     AQUILAX_AUTH: "$AQUILAX_API_TOKEN"
   script:
     - |
