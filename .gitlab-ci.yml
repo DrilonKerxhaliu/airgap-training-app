@@ -1,28 +1,28 @@
 stages:
-  - scan
-
-variables:
-  ORG_ID: "6971641266e58de7aff48cb9"
-  GROUP_ID: "6998284f4fb2909c8f60d446"
-
-aquilax_scan:
-  stage: scan
-  image: python:3.9
+  - aquilax
+  
+Security Scan:
+  stage: aquilax
   variables:
-    GIT_URL: "https://vpsgitlab.digimat.it/${CI_PROJECT_PATH}.git"
-    AQUILAX_AUTH: "$AQUILAX_API_TOKEN"
+    AQUILAX_ORG_ID: "6971641266e58de7aff48cb9"
+    AQUILAX_GROUP_ID: "6998284f4fb2909c8f60d446"
+  image: python:3.12-slim
+  allow_failure: true
+  timeout: 5m
   script:
     - |
-      pip install aquilax
+      echo "$CI_PROJECT_URL.git" - "$CI_COMMIT_REF_NAME"
+      pip3 install --no-cache-dir --upgrade aquilax
+      aquilax -v
+      aquilax login "$AQUILAX_API_TOKEN" --server "https://aquilax.ai" || exit 1
       aquilax ci-scan \
-        "$GIT_URL" \
-        --org-id "$ORG_ID" \
-        --group-id "$GROUP_ID"
-        
+        "$CI_PROJECT_URL".git \
+        --org-id "$AQUILAX_ORG_ID" \
+        --group-id "$AQUILAX_GROUP_ID" \
+        --branch "$CI_COMMIT_REF_NAME"
   artifacts:
-    when: always
+    when: always 
     paths:
       - results.sarif
-  only:
-    refs:
-      - main
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "schedule"'
