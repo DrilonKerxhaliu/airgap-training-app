@@ -138,7 +138,6 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
                 throw new PackageFileNotFoundException(tarPath.toString());
             }
 
-            markExported(pkg);
             transactionService.closeSuccess(tx.getId(), "SUCCESS: Generated and downloaded latest package", Direction.DOWNSTREAM);
             return pkg;
 
@@ -203,20 +202,8 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         // Exported, downloaded by downstream
         if (pkg.getExportedAt() == null) {
             pkg.setExportedAt(Instant.now());
+            pkg.setState(PackageState.PROCESSING);
             packageRepository.save(pkg);
         }
-    }
-
-    private ResponseEntity<FileSystemResource> buildDownloadResponse(Path tarPath) throws IOException {
-        FileSystemResource res = new FileSystemResource(tarPath.toFile());
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-        headers.setContentDisposition(ContentDisposition.attachment().filename(tarPath.getFileName().toString()).build());
-        headers.setContentLength(res.contentLength());
-
-        return ResponseEntity.ok()
-                .headers(headers)
-                .body(res);
     }
 }

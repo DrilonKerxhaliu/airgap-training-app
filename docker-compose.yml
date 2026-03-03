@@ -1,6 +1,21 @@
 version: "3.9"
 
 services:
+  airgapmanager-dev:
+    image: node:20-alpine      # Use Node image directly, no Dockerfile
+    working_dir: /app
+    volumes:
+      - ./frontend/airgap/airgapmanager:/app   # Mount project source code
+      - /app/node_modules                      # Keep node_modules inside container
+    ports:
+      - "5173:5173"           # host:container (Vite default port is 5173)
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    container_name: airgapmanager-dev
+    networks:
+      - airgap-network
+    depends_on:
+      - airgap-service
+
   postgres:
     image: postgres:15
     container_name: airgap-postgres
@@ -12,15 +27,19 @@ services:
       - "5433:5432"
     volumes:
       - airgap_pgdata:/var/lib/postgresql/data
-      - ./db/init:/docker-entrypoint-initdb.d
+      - ./backend/db/init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U airgap_dev_user -d airgap_dev_db"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - airgap-network
 
   airgap-service:
-    build: .
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: airgap-service
     depends_on:
       postgres:
@@ -35,7 +54,13 @@ services:
     volumes:
       - airgap_data:/opt/airgap/data
     restart: always
+    networks:
+      - airgap-network
 
 volumes:
   airgap_pgdata:
   airgap_data:
+
+networks:
+  airgap-network:
+    driver: bridge

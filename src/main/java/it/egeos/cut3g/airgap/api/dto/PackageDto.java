@@ -8,7 +8,6 @@ import java.time.Instant;
 public class PackageDto {
 
     public String id;
-    public long progressiveNumber;
     public String packageName;
     public String packagePath;
     public String md5DataTar;
@@ -22,7 +21,6 @@ public class PackageDto {
     public static PackageDto from(PackageEntity p) {
         PackageDto dto = new PackageDto();
         dto.id = p.getId();
-        dto.progressiveNumber = p.getProgressiveNumber();
         dto.packageName = p.getPackageName();
         dto.packagePath = p.getPackagePath();
         dto.md5DataTar = p.getMd5DataTar();

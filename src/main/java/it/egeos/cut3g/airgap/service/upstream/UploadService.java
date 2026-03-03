@@ -68,11 +68,13 @@ public class UploadService {
         TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.UPSTREAM, username);
 
         try {
-            Path incomingBase = Paths.get(incomingDir).toAbsolutePath().normalize();
-            Path sourceAbs = sourcePath.toAbsolutePath().normalize();
+            Path uploadBase = Paths.get(uploadedDir).toAbsolutePath().normalize();
+            Path sourceAbs  = sourcePath.toAbsolutePath().normalize();
 
-            if (!sourceAbs.startsWith(incomingBase)) {
-                throw new SecurityException("Invalid source path: " + sourceAbs);
+            if (!sourceAbs.startsWith(uploadBase)) {
+                throw new SecurityException(
+                        "Invalid source path: expected under " + uploadBase + " but was " + sourceAbs
+                );
             }
         } catch (Exception e) {
             throw new DownstreamIOException("Invalid source path validation", e);

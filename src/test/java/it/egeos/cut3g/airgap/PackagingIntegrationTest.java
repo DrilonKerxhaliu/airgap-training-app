@@ -75,7 +75,7 @@ class PackagingIntegrationTest {
         event.setArrivedAt(Instant.now());
         event.setState(FileItemState.NEW);
 
-        sseService.publish(event);
+        sseService.onFileEvent(event);
     }
 
     @PostMapping("airgap/file/test-bulk")
@@ -89,7 +89,7 @@ class PackagingIntegrationTest {
             event.setArrivedAt(Instant.now());
             event.setState(FileItemState.PACKED);
 
-            sseService.publish(event);
+            sseService.onFileEvent(event);
         }
     }
 }
