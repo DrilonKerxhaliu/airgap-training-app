@@ -237,7 +237,7 @@ public class FolderWatcherService {
             dto.setArrivedAt(saved.getReceivedTime());
             dto.setState(saved.getState());
 
-            fileSseService.publish(dto);
+            fileSseService.onFileEvent(dto);
 
             log.info("Saved entity ID={}", saved.getId());
 
