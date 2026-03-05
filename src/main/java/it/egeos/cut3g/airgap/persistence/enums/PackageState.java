@@ -4,6 +4,7 @@ public enum PackageState {
     NEW,
     CREATED,
     PROCESSING,
+    SENT,
     UPLOADED,
     IMPORTED,
     FAILED,
