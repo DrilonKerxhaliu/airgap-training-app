@@ -16,16 +16,17 @@ import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.TransactionRepository;
 import it.egeos.cut3g.airgap.service.files.FileDiscoveryService;
 import it.egeos.cut3g.airgap.service.files.TransactionService;
+import it.egeos.cut3g.airgap.service.files.TransferProtocolService;
 import it.egeos.cut3g.airgap.service.packaging.PackagingService;
 import it.egeos.cut3g.airgap.service.tar.TarListingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,6 +64,9 @@ public class DownstreamService {
 
     @Autowired
     private TransactionService transactionService;
+
+    @Autowired
+    private TransferProtocolService protocolService;
 
     public List<PackageDto> listReadyForDownload() {
         List<PackageEntity> pkgs = packageRepository.findByStates(List.of(PackageState.CREATED));
@@ -147,6 +151,22 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         }
     }
 
+    @Transactional
+    public void sendPackages(List<String> packageIds, String username) {
+
+        for (String id : packageIds) {
+
+            PackageEntity pkg = packageRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Package not found: " + id));
+
+            pkg.setState(PackageState.PROCESSING);
+
+            packageRepository.save(pkg);
+
+            transferAsync(pkg, username);
+        }
+    }
+
     public List<PackageDto> historyList() {
         return packageRepository.findHistory()
                 .stream()
@@ -206,4 +226,18 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
             packageRepository.save(pkg);
         }
     }
+
+  @Async
+public void transferAsync(PackageEntity pkg, String username) {
+    TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM, username);
+    try {
+        protocolService.transfer(pkg);
+        pkg.setState(PackageState.SENT);
+        transactionService.closeSuccess(tx.getId(), "SUCCESS: Package transferred", Direction.DOWNSTREAM);
+    } catch (Exception ex) {
+        pkg.setState(PackageState.FAILED);
+        transactionService.closeFailure(tx.getId(), "FAILED: Transfer error - " + ex.getMessage(), Direction.DOWNSTREAM, username);
+    }
+    packageRepository.save(pkg);
+}
 }

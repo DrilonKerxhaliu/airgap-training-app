@@ -18,6 +18,7 @@
         <java.version>17</java.version>
         <spring.boot.version>2.7.18</spring.boot.version>
         <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
+        <postgresql.version>42.7.3</postgresql.version>
     </properties>
 
     <!-- Spring Boot BOM (no parent) -->
@@ -34,7 +35,6 @@
     </dependencyManagement>
 
     <dependencies>
-
         <!-- REST / MVC (Jackson excluded, Gson used instead) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -92,12 +92,6 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- AOP -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-aop</artifactId>
-        </dependency>
-
         <!-- Actuator endpoints -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -121,6 +115,11 @@
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>5.2.5</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-net</groupId>
+            <artifactId>commons-net</artifactId>
+            <version>3.9.0</version>
         </dependency>
     </dependencies>
 

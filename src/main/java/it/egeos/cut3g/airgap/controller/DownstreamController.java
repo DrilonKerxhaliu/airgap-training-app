@@ -47,6 +47,15 @@ public class DownstreamController {
         return ApiResponse.ok("OK", PackageDto.from(pkg));
     }
 
+    @PostMapping("/packages/send")
+    public ResponseEntity<Void> sendPackages(@RequestBody SendPackagesRequest request,
+                                             @RequestParam(value = "username", required = false) String username) {
+
+        downstreamService.sendPackages(request.getPackageIds(), username);
+
+        return ResponseEntity.accepted().build();
+    }
+
     @GetMapping("/package/history/list")
     public ApiResponse<List<PackageDto>> historyList() {
         return ApiResponse.ok("OK", downstreamService.historyList());
