@@ -21,15 +21,20 @@ services:
     container_name: airgap-postgres
     environment:
       POSTGRES_DB: airgap_dev_db
-      POSTGRES_USER: airgap_dev_user
-      POSTGRES_PASSWORD: airgap_dev_pass
+      POSTGRES_USER_FILE: /run/secrets/db_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+
+    secrets:
+      - db_user
+      - db_password
+
     ports:
       - "5433:5432"
     volumes:
       - airgap_pgdata:/var/lib/postgresql/data
       - ./backend/db/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U airgap_dev_user -d airgap_dev_db"]
+      test: ["CMD-SHELL", "pg_isready -U $(cat /run/secrets/db_user) -d airgap_dev_db"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -51,8 +56,11 @@ services:
       SPRING_DATASOURCE_USERNAME: airgap_dev_user
       SPRING_DATASOURCE_PASSWORD: airgap_dev_pass
       SPRING_PROFILES_ACTIVE: docker
+      AIRGAP_AES_KEY: ${AIRGAP_AES_KEY}
+
     volumes:
       - airgap_data:/opt/airgap/data
+      - ./config:/opt/airgap/config
     restart: always
     networks:
       - airgap-network
@@ -60,6 +68,13 @@ services:
 volumes:
   airgap_pgdata:
   airgap_data:
+
+
+secrets:
+  db_user:
+    file: ./secrets/db_user.txt
+  db_password:
+    file: ./secrets/db_password.txt
 
 networks:
   airgap-network:
