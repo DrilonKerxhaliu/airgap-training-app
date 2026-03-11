@@ -4,15 +4,19 @@ import it.egeos.cut3g.airgap.api.ApiResponse;
 import it.egeos.cut3g.airgap.api.dto.*;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
+import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
+import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
+import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
 import it.egeos.cut3g.airgap.service.downstream.DownstreamService;
 import it.egeos.cut3g.airgap.service.files.ArchiveCleanupService;
 import it.egeos.cut3g.airgap.service.importing.IncomingPackageImportService;
 import it.egeos.cut3g.airgap.service.upstream.UploadService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -33,23 +37,39 @@ public class UpstreamController {
     private DownstreamService downstreamService;
 
     @Autowired
-    private IncomingPackageImportService incomingPackageImportService;
-
-    @Autowired
     private ArchiveCleanupService archiveCleanupService;
 
-    @PutMapping("/package/{packageId}")
-    public ApiResponse<PackageDto> uploadPackage(@PathVariable String packageId,
-                                                 @RequestParam(value = "username", required = false) String username) {
-        PackageEntity pkg = uploadService.uploadPackage(packageId, username);
-        return ApiResponse.ok("OK", PackageDto.from(pkg));
+    @Autowired
+    private UploadPackageRepository uploadPackageRepository;
+
+    @PostMapping("/package/{packageName}/upload")
+    public ResponseEntity<?> uploadPackage(@PathVariable String packageName,
+                                           @RequestParam(value = "username", required = false) String username) {
+
+        UploadPackageEntity pkg = uploadService.uploadPackage(packageName, username);
+
+        return ResponseEntity.ok(
+                java.util.Map.of(
+                        "uploadPackageId", pkg.getId(),
+                        "packageName", pkg.getPackageName(),
+                        "sequenceIndex", pkg.getSequenceIndex(),
+                        "status", pkg.getStatus().name(),
+                        "fileCount", pkg.getFileCount() != null ? pkg.getFileCount() : 0,
+                        "totalSizeBytes", pkg.getTotalSizeBytes() != null ? pkg.getTotalSizeBytes() : 0
+                )
+        );
+    }
+
+    @GetMapping("/package/list")
+    public ApiResponse<List<UploadPackageDto>> listPackagesReady() {
+        return ApiResponse.ok("OK", uploadService.listReadyForDownload());
     }
 
     @GetMapping("/package/history/list")
-    public ApiResponse<List<PackageDto>> history() {
-        List<PackageDto> list = packageRepository.findAll().stream()
-                .filter(p -> p.getState() == PackageState.UPLOADED)
-                .map(PackageDto::from)
+    public ApiResponse<List<UploadPackageDto>> history() {
+        List<UploadPackageDto> list = uploadPackageRepository.findAll().stream()
+                .filter(p -> p.getStatus() == UploadPackageStatus.IMPORTED)
+                .map(UploadPackageDto::from)
                 .collect(Collectors.toList());
         return ApiResponse.ok("OK", list);
     }
@@ -61,9 +81,9 @@ public class UpstreamController {
 
     @GetMapping("/statistics")
     public ApiResponse<UpstreamStatisticsResponse> statistics() {
-        long total = packageRepository.count();
-        long uploaded = packageRepository.findAll().stream()
-                .filter(p -> p.getState() == PackageState.UPLOADED)
+        long total = uploadPackageRepository.count();
+        long uploaded = uploadPackageRepository.findAll().stream()
+                .filter(p -> p.getStatus() == UploadPackageStatus.IMPORTED)
                 .count();
 
         UpstreamStatisticsResponse stats = new UpstreamStatisticsResponse();
@@ -76,20 +96,6 @@ public class UpstreamController {
     @GetMapping("/status")
     public ApiResponse<UpstreamStatusResponse> status() {
         return ApiResponse.ok("OK", uploadService.status());
-    }
-
-    @PostMapping("/import/package/{packageId}")
-    public ApiResponse<ImportTransactionDto> importPackage(
-            @PathVariable String packageId,
-            @RequestParam(value = "username", required = false) String username) {
-
-        TransactionEntity tx =
-                incomingPackageImportService.importIncomingPackage(packageId, username);
-
-        return ApiResponse.ok(
-                tx.getState().name(),
-                ImportTransactionDto.from(tx, Direction.IMPORT)
-        );
     }
 
     @DeleteMapping("/delete/package/{packageId}")

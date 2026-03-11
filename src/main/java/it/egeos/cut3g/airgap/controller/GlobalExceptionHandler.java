@@ -44,4 +44,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("Internal error: " + ex.getMessage()));
     }
+
+    @ExceptionHandler(it.egeos.cut3g.airgap.exceptions.SequenceMismatchException.class)
+    public ResponseEntity<?> handleSequenceMismatch(it.egeos.cut3g.airgap.exceptions.SequenceMismatchException ex) {
+        return ResponseEntity.badRequest().body(java.util.Map.of(
+                "error", "SEQUENCE_MISMATCH",
+                "message", ex.getMessage()
+        ));
+    }
 }

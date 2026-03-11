@@ -2,9 +2,12 @@ package it.egeos.cut3g.airgap.service.files;
 
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
+import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
+import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
+import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +40,8 @@ public class ArchiveCleanupService {
 
     @Autowired
     private TransactionService transactionService;
+    @Autowired
+    private UploadPackageRepository uploadPackageRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void cleanupArchivedPackages() {
@@ -67,17 +72,17 @@ public class ArchiveCleanupService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void manualCleanupArchivedPkg(String packageId, String username) {
 
-        PackageEntity pkg = packageRepository.findById(packageId)
+        UploadPackageEntity pkg = uploadPackageRepository.findById(packageId)
                 .orElseThrow(() ->
                         new IllegalArgumentException("Package not found: " + packageId));
 
         // optional domain protection
-        if (pkg.getState() == PackageState.DELETED) {
+        if (pkg.getStatus() == UploadPackageStatus.DELETED) {
             log.info("Package {} already deleted – skipping", packageId);
             return;
         }
 
-        deleteSinglePackage(pkg, username);
+     //   deleteSinglePackage(pkg, username);
     }
 
     private void deleteSinglePackage(PackageEntity pkg, String username) {
@@ -104,12 +109,12 @@ public class ArchiveCleanupService {
             pkg.setState(PackageState.DELETED);
             pkg.setNotes("Deleted by archive cleanup job");
             pkg.setExportedAt(Instant.now()); // last state change
+
             packageRepository.save(pkg);
 
             transactionService.closeSuccess(
                     tx.getId(),
-                    "Package deleted by archive cleanup",
-                    Direction.CLEANUP
+                    "Package deleted by archive cleanup"
             );
 
         } catch (Exception e) {
@@ -122,7 +127,6 @@ public class ArchiveCleanupService {
             transactionService.closeFailure(
                     tx.getId(),
                     e.getMessage(),
-                    Direction.CLEANUP,
                     username
             );
         }

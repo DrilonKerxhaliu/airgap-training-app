@@ -1,159 +1,222 @@
 package it.egeos.cut3g.airgap.service.importing;
 
-import com.google.gson.Gson;
-import it.egeos.cut3g.airgap.exceptions.PackageFileNotFoundException;
-import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
-import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
+import it.egeos.cut3g.airgap.api.dto.ImportDeliveryResult;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
+import it.egeos.cut3g.airgap.persistence.entity.UploadFileEntity;
+import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
-import it.egeos.cut3g.airgap.persistence.enums.FileItemState;
-import it.egeos.cut3g.airgap.persistence.enums.PackageState;
-import it.egeos.cut3g.airgap.persistence.repo.FileItemRepository;
-import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
-import it.egeos.cut3g.airgap.service.crypto.CryptoService;
+import it.egeos.cut3g.airgap.persistence.enums.UploadFileStatus;
+import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
+import it.egeos.cut3g.airgap.persistence.repo.UploadFileRepository;
+import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
 import it.egeos.cut3g.airgap.service.files.TransactionService;
+import it.egeos.cut3g.airgap.service.manifest.ManifestFileItem;
 import it.egeos.cut3g.airgap.service.manifest.PackageManifest;
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.io.IOUtils;
+import it.egeos.cut3g.airgap.service.upstream.UploadSequenceService;
+import it.egeos.cut3g.airgap.service.util.PackageNameParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import java.io.*;
-import java.nio.charset.StandardCharsets;
+
 import java.nio.file.*;
 import java.time.Instant;
-import java.util.*;
-import java.util.regex.Pattern;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class IncomingPackageImportService {
 
     private static final Logger log = LoggerFactory.getLogger(IncomingPackageImportService.class);
 
-    @Value("${airgap.incoming.packages.archive.dir}")
-    private String archiveDir;
-
-    @Value("${airgap.uploaded.packages.dir}")
-    private String uploadedPackagesDir;
-
-    @Value("${airgap.unpack.work.dir}")
-    private String unpackWorkDir;
-
-    @Autowired
-    private CryptoService cryptoService;
-
     @Autowired
     private ImportDeliveryOrchestrator importDeliveryOrchestrator;
 
     @Autowired
-    private PackageRepository packageRepository;
+    private UploadPackageRepository uploadPackageRepository;
 
     @Autowired
-    private FileItemRepository fileItemRepository;
+    private UploadFileRepository uploadFileRepository;
 
     @Autowired
     private TransactionService transactionService;
 
-    private final Gson gson = new Gson();
+    @Autowired
+    private UploadSequenceService uploadSequenceService;
 
-    /**
-     * Imports a single incoming package.tar.
-     * FULL FLOW:
-     * - read outer tar
-     * - decrypt manifest
-     * - verify md5(data.tar)
-     * - unpack + deliver to downstream.out
-     * - audit + archive
-     */
+    @Autowired
+    private PackageNameParser packageNameParser;
+
+    @Value("${airgap.unpack.work.dir}")
+    private String unpackWorkDir;
+
+    @Value("${airgap.incoming.packages.archive.dir}")
+    private String archiveDir;
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public TransactionEntity importIncomingPackage(String packageId, String username) {
+    public UploadPackageEntity importUploadedPackage(Path tarPath, String username) {
 
+        Path normalizedTar = tarPath.toAbsolutePath().normalize();
+        String packageName = normalizedTar.getFileName().toString();
+        long sequence = packageNameParser.extractSequence(packageName);
 
-    PackageEntity pkg = packageRepository.findById(packageId)
-            .orElseThrow(() -> new PackageNotFoundException(packageId));
+        uploadSequenceService.assertExpectedNext(sequence);
 
-    Path tarPath = Paths.get(pkg.getPackagePath())
-            .toAbsolutePath()
-            .normalize();
+        if (uploadPackageRepository.existsByPackageName(packageName)) {
+            throw new IllegalStateException("Package already processed: " + packageName);
+        }
 
-    Path uploadRoot = Paths.get(uploadedPackagesDir)
-            .toAbsolutePath()
-            .normalize();
+        UploadPackageEntity uploadPkg = new UploadPackageEntity();
+        uploadPkg.setPackageName(packageName);
+        uploadPkg.setSequenceIndex(sequence);
+        uploadPkg.setOriginalTarPath(normalizedTar.toString());
+        uploadPkg.setStatus(UploadPackageStatus.RECEIVED);
+        if (username != null) {
+            uploadPkg.setUploadedBy(username);
+        } else {
+            uploadPkg.setUploadedBy("auto");
+        }
+        uploadPkg.setNote("Package received for import");
+        uploadPackageRepository.save(uploadPkg);
 
-    if (!tarPath.startsWith(uploadRoot)) {
-        throw new SecurityException("Package path outside UPLOAD dir: " + tarPath);
-    }
-
-    if (!Files.exists(tarPath)) {
-        throw new PackageFileNotFoundException(tarPath.toString());
-    }
-
-    // 2️⃣ Start IMPORT transaction
-    TransactionEntity tx =
-            transactionService.startTransaction(packageId, Direction.IMPORT, username);
-
-    Path workDir = Paths.get(unpackWorkDir).resolve(packageId);
-
-    try {
-
-        importDeliveryOrchestrator.unpackAndDeliver(tarPath, workDir);
-        log.info("UNZIP SUCCESS for packageId={} into workDir={}", packageId, workDir);
-        markPackageImported(pkg,"Unzip completed successfully");
-
-        // FILES → EXTRACTED (DB)
-        fileItemRepository.updateStateByPackageId(
-                packageId,
-                FileItemState.EXTRACTED
+        TransactionEntity tx = transactionService.startUploadTransaction(
+                uploadPkg.getId(),
+                Direction.UPSTREAM,
+                username
         );
 
-        // ARCHIVE TAR (MOVE = delete from UPLOAD)
-        Path archiveRoot = Paths.get(archiveDir).normalize();
+        Path workDir = Paths.get(unpackWorkDir).resolve(uploadPkg.getId()).toAbsolutePath().normalize();
+        uploadPkg.setWorkDirPath(workDir.toString());
 
-        Files.createDirectories(archiveRoot);
-        Path archivedTar = archiveRoot.resolve(tarPath.getFileName());
-        Files.move(
-                tarPath,
-                archivedTar,
-                StandardCopyOption.REPLACE_EXISTING,
-                StandardCopyOption.ATOMIC_MOVE
-        );
+        try {
+            Files.createDirectories(workDir);
 
-        // PACKAGE → ARCHIVED
-        markPackageArchived(pkg, archivedTar, "Archived successfully" );
-        // TX → COMPLETED
-        transactionService.closeSuccess(tx.getId(), "IMPORTED + ARCHIVED successfully", Direction.IMPORT);
-        cleanupWorkDir(workDir);
-        return tx;
+            uploadPkg.setStatus(UploadPackageStatus.SEQUENCE_VALIDATED);
+            uploadPkg.setNote("Sequence validated successfully");
+            uploadPackageRepository.save(uploadPkg);
 
-    } catch (Exception ex) {
-        log.error("FAILED importing package {}", packageId, ex);
-        transactionService.closeFailure(tx.getId(), ex.getMessage(), Direction.IMPORT, username);
-            return tx;
+            uploadPkg.setStatus(UploadPackageStatus.UNPACKING);
+            uploadPkg.setNote("Unpacking package");
+            uploadPackageRepository.save(uploadPkg);
+
+            ImportDeliveryResult result = importDeliveryOrchestrator.unpackAndDeliver(normalizedTar, workDir);
+            PackageManifest manifest = result.getManifest();
+
+            uploadPkg.setOuterDirPath(result.getOuterDir().toString());
+            uploadPkg.setDataDirPath(result.getDataDir().toString());
+            uploadPkg.setManifestRelativePath("manifest.enc");
+            uploadPkg.setManifestMd5DataTar(manifest.getMd5DataTar());
+            uploadPkg.setStatus(UploadPackageStatus.UNPACKED);
+            uploadPkg.setNote("Package unpacked and validated");
+            uploadPackageRepository.save(uploadPkg);
+
+            persistFilesFromManifest(uploadPkg, manifest, result);
+
+            uploadPkg.setStatus(UploadPackageStatus.DELIVERING);
+            uploadPkg.setNote("Files delivered to collect/out");
+            uploadPackageRepository.save(uploadPkg);
+
+            finalizePackageStats(uploadPkg);
+
+            uploadPkg.setStatus(UploadPackageStatus.IMPORTED);
+            uploadPkg.setImportedAt(Instant.now());
+            uploadPkg.setNote("Import completed successfully");
+            uploadPackageRepository.save(uploadPkg);
+
+            archiveTar(normalizedTar, uploadPkg);
+
+            uploadSequenceService.markProcessed(sequence);
+            transactionService.closeSuccess(tx.getId(), "UPLOAD IMPORT SUCCESS");
+
+            cleanupWorkDir(workDir);
+
+            log.info("UPLOAD IMPORT SUCCESS package={} sequence={} uploadPackageId={}",
+                    packageName, sequence, uploadPkg.getId());
+
+            return uploadPkg;
+
+        } catch (Exception ex) {
+            uploadPkg.setStatus(UploadPackageStatus.FAILED);
+            uploadPkg.setNote(ex.getMessage());
+            uploadPackageRepository.save(uploadPkg);
+
+            markFilesFailed(uploadPkg.getId(), ex.getMessage());
+
+            transactionService.closeFailure(tx.getId(), ex.getMessage(), username);
+
+            log.error("UPLOAD IMPORT FAILED package={} uploadPackageId={}", packageName, uploadPkg.getId(), ex);
+            throw new RuntimeException("Upload import failed for " + packageName + ": " + ex.getMessage(), ex);
         }
     }
 
-    // ----------------------------
-    // Helpers
-    // ----------------------------
+    private void persistFilesFromManifest(UploadPackageEntity uploadPkg,
+                                          PackageManifest manifest,
+                                          ImportDeliveryResult result) {
 
-    private void markPackageImported(PackageEntity pkg, String notes) {
-        pkg.setState(PackageState.IMPORTED);
-        pkg.setNotes(notes);
-        pkg.setExportedAt(Instant.now());
-        packageRepository.save(pkg);
+        Map<String, Path> extractedFiles = result.getExtractedFiles();
+        Map<String, Path> deliveredFiles = result.getDeliveredFiles();
+
+        for (ManifestFileItem item : manifest.getFiles()) {
+            String relative = item.getRelativePath().replace("\\", "/");
+            Path extractedPath = extractedFiles.get(relative);
+            Path deliveredPath = deliveredFiles.get(relative);
+
+            UploadFileEntity file = new UploadFileEntity();
+            file.setUploadPackage(uploadPkg);
+            file.setRelativePath(relative);
+            file.setExtractedAbsolutePath(extractedPath != null ? extractedPath.toString() : null);
+            file.setDeliveredAbsolutePath(deliveredPath != null ? deliveredPath.toString() : null);
+            file.setSizeBytes(item.getSizeBytes());
+            file.setChecksumMd5(item.getMd5());
+            file.setStatus(UploadFileStatus.DELIVERED);
+            file.setNote("File imported and delivered");
+
+            uploadFileRepository.save(file);
+
+            log.info("UPLOAD FILE SAVED uploadPackageId={} relativePath={} deliveredPath={}",
+                    uploadPkg.getId(), relative, deliveredPath);
+        }
     }
 
-    private void markPackageArchived(PackageEntity pkg,Path archivedTar, String notes) {
-        pkg.setState(PackageState.ARCHIVED);
-        pkg.setNotes(notes);
-        pkg.setExportedAt(Instant.now());
-        pkg.setPackagePath(archivedTar.toString());
-        packageRepository.save(pkg);
+    private void finalizePackageStats(UploadPackageEntity uploadPkg) {
+        List<UploadFileEntity> files = uploadFileRepository.findByUploadPackageId(uploadPkg.getId());
+
+        long totalSize = files.stream().mapToLong(UploadFileEntity::getSizeBytes).sum();
+        int count = files.size();
+
+        uploadPkg.setFileCount(count);
+        uploadPkg.setTotalSizeBytes(totalSize);
+        uploadPackageRepository.save(uploadPkg);
+    }
+
+    private void archiveTar(Path originalTar, UploadPackageEntity uploadPkg) throws Exception {
+        Path archiveRoot = Paths.get(archiveDir).toAbsolutePath().normalize();
+        Files.createDirectories(archiveRoot);
+
+        Path archivedTar = archiveRoot.resolve(originalTar.getFileName()).normalize();
+        Files.move(originalTar, archivedTar, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+
+        uploadPkg.setArchivedTarPath(archivedTar.toString());
+        uploadPkg.setArchivedAt(Instant.now());
+        uploadPkg.setStatus(UploadPackageStatus.ARCHIVED);
+        uploadPkg.setNote("Tar archived successfully");
+        uploadPackageRepository.save(uploadPkg);
+
+        log.info("UPLOAD TAR ARCHIVED uploadPackageId={} archivedTar={}",
+                uploadPkg.getId(), archivedTar);
+    }
+
+    private void markFilesFailed(String uploadPackageId, String note) {
+        List<UploadFileEntity> files = uploadFileRepository.findByUploadPackageId(uploadPackageId);
+        for (UploadFileEntity file : files) {
+            file.setStatus(UploadFileStatus.FAILED);
+            file.setNote(note);
+            uploadFileRepository.save(file);
+        }
     }
 
     private void cleanupWorkDir(Path workDir) {
