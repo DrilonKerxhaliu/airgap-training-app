@@ -1,122 +1,133 @@
 package it.egeos.cut3g.airgap.service.importing;
 
 import com.google.gson.Gson;
+import it.egeos.cut3g.airgap.api.dto.ImportDeliveryResult;
 import it.egeos.cut3g.airgap.service.crypto.CryptoService;
 import it.egeos.cut3g.airgap.service.downstream.OutboxDeliveryService;
 import it.egeos.cut3g.airgap.service.manifest.ManifestFileItem;
 import it.egeos.cut3g.airgap.service.manifest.PackageManifest;
 import it.egeos.cut3g.airgap.service.tar.TarExtractService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Service
 public class ImportDeliveryOrchestrator {
 
-        @Autowired
-        private TarExtractService tarExtractService;
+    private static final Logger log = LoggerFactory.getLogger(ImportDeliveryOrchestrator.class);
 
-        @Autowired
-        private OutboxDeliveryService outboxDeliveryService;
+    @Autowired
+    private TarExtractService tarExtractService;
 
-        @Autowired
-        private CryptoService cryptoService;
+    @Autowired
+    private OutboxDeliveryService outboxDeliveryService;
 
-        @Autowired
-        private Gson gson ;
+    @Autowired
+    private CryptoService cryptoService;
 
-        /**
-         * FULL DELIVERY FLOW:
-         * 1. extract outer tar
-         * 2. decrypt + parse manifest
-         * 3. extract inner data.tar
-         * 4. validate extracted files vs manifest
-         * 5. deliver to OUT
-         */
-        public PackageManifest unpackAndDeliver(Path packageTar, Path workDir) throws Exception {
+    @Autowired
+    private Gson gson;
 
-            Path outerDir = workDir.resolve("outer");
-            Map<String, Path> outer = tarExtractService.extractTar(packageTar, outerDir);
+    public ImportDeliveryResult unpackAndDeliver(Path packageTar, Path workDir) throws Exception {
 
-            Path manifestEnc = outer.get("manifest.enc");
-            Path dataTar = outer.values().stream()
-                    .filter(p -> p.getFileName().toString().endsWith("-data.tar"))
-                    .findFirst()
-                    .orElse(null);
+        Path outerDir = workDir.resolve("outer");
+        Files.createDirectories(outerDir);
 
-            if (manifestEnc == null || dataTar == null) {
-                throw new IllegalStateException("Outer tar missing manifest.enc or data.tar");
-            }
+        Map<String, Path> outerEntries = tarExtractService.extractTar(packageTar, outerDir);
 
+        Path manifestEnc = outerEntries.get("manifest.enc");
+        Path dataTar = outerEntries.values().stream()
+                .filter(p -> p.getFileName().toString().endsWith("-data.tar"))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Outer tar missing *-data.tar"));
 
-            byte[] encBytes = Files.readAllBytes(manifestEnc);
-            byte[] jsonBytes = cryptoService.decrypt(encBytes);
-
-            PackageManifest manifest = gson.fromJson(
-                    new String(jsonBytes, StandardCharsets.UTF_8),
-                    PackageManifest.class
-            );
-
-            validateManifest(manifest);
-
-
-            Path dataDir = workDir.resolve("data");
-            Map<String, Path> extractedFiles =
-                    tarExtractService.extractTar(dataTar, dataDir);
-
-            validateExtractedFiles(manifest, dataDir);
-
-            outboxDeliveryService.deliver(extractedFiles);
-
-            return manifest;
+        if (manifestEnc == null) {
+            throw new IllegalStateException("Outer tar missing manifest.enc");
         }
 
-        private void validateManifest(PackageManifest manifest) {
-            if (manifest == null) {
-                throw new IllegalArgumentException("Manifest is null");
-            }
-            if (manifest.getFiles() == null || manifest.getFiles().isEmpty()) {
-                throw new IllegalArgumentException("Manifest contains no files");
-            }
+        byte[] encBytes = Files.readAllBytes(manifestEnc);
+        byte[] jsonBytes = cryptoService.decrypt(encBytes);
+
+        PackageManifest manifest = gson.fromJson(
+                new String(jsonBytes, StandardCharsets.UTF_8),
+                PackageManifest.class
+        );
+
+        validateManifest(manifest, packageTar.getFileName().toString());
+
+        Path dataDir = workDir.resolve("data");
+        Files.createDirectories(dataDir);
+
+        Map<String, Path> extractedFiles = tarExtractService.extractTar(dataTar, dataDir);
+        Map<String, Path> extractedByManifest = validateAndMapManifestFiles(manifest, dataDir, extractedFiles);
+
+        Map<String, Path> deliveredFiles = outboxDeliveryService.deliver(extractedByManifest);
+
+        log.info("DELIVERY SUCCESS package={} fileCount={}",
+                packageTar.getFileName(), deliveredFiles.size());
+
+        return new ImportDeliveryResult(
+                manifest,
+                workDir,
+                outerDir,
+                dataDir,
+                manifestEnc,
+                dataTar,
+                extractedByManifest,
+                deliveredFiles
+        );
+    }
+
+    private void validateManifest(PackageManifest manifest, String actualPackageName) {
+        if (manifest == null) {
+            throw new IllegalArgumentException("Manifest is null");
         }
-
-        private void validateExtractedFiles(PackageManifest manifest, Path dataDir) {
-
-            for (ManifestFileItem item : manifest.getFiles()) {
-
-                Path expected = dataDir
-                        .resolve(item.getRelativePath())
-                        .normalize();
-
-                if (!expected.startsWith(dataDir)) {
-                    throw new SecurityException(
-                            "Invalid manifest path traversal: " + item.getRelativePath()
-                    );
-                }
-
-                if (!Files.exists(expected)) {
-                    throw new IllegalStateException(
-                            "Missing extracted file: " + item.getRelativePath()
-                    );
-                }
-
-                try {
-                    long actualSize = Files.size(expected);
-                    if (actualSize != item.getSizeBytes()) {
-                        throw new IllegalStateException(
-                                "Size mismatch for " + item.getRelativePath() +
-                                        " expected=" + item.getSizeBytes() +
-                                        " actual=" + actualSize
-                        );
-                    }
-                } catch (IOException e) {
-                    throw new RuntimeException("Unable to read extracted file size", e);
-                }
-            }
+        if (manifest.getPackageName() == null || manifest.getPackageName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Manifest packageName is empty");
+        }
+        if (!manifest.getPackageName().equals(actualPackageName)) {
+            throw new IllegalArgumentException("Manifest packageName mismatch. manifest="
+                    + manifest.getPackageName() + " actual=" + actualPackageName);
+        }
+        if (manifest.getFiles() == null || manifest.getFiles().isEmpty()) {
+            throw new IllegalArgumentException("Manifest contains no files");
         }
     }
+
+    private Map<String, Path> validateAndMapManifestFiles(PackageManifest manifest,
+                                                          Path dataDir,
+                                                          Map<String, Path> extractedFiles) throws Exception {
+
+        Map<String, Path> result = new LinkedHashMap<>();
+
+        for (ManifestFileItem item : manifest.getFiles()) {
+            String relative = item.getRelativePath().replace("\\", "/");
+            Path expected = dataDir.resolve(relative).normalize();
+
+            if (!expected.startsWith(dataDir)) {
+                throw new SecurityException("Path traversal in manifest: " + relative);
+            }
+
+            if (!Files.exists(expected)) {
+                throw new IllegalStateException("Missing extracted file: " + relative);
+            }
+
+            long actualSize = Files.size(expected);
+            if (actualSize != item.getSizeBytes()) {
+                throw new IllegalStateException("Size mismatch for " + relative
+                        + " expected=" + item.getSizeBytes()
+                        + " actual=" + actualSize);
+            }
+
+            result.put(relative, expected);
+        }
+
+        return result;
+    }
+}

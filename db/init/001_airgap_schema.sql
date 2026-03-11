@@ -67,7 +67,7 @@ ALTER TABLE airgap.t_airgap_package
 
 
 -- ================================
--- DOWNSTREAM TRANSACTIONS
+-- DOWNSTREAM / UPSTREAM TRANSACTIONS
 -- ================================
 
 CREATE TABLE t_airgap_transactions (
@@ -99,3 +99,102 @@ CREATE INDEX idx_tx_package_id
 CREATE INDEX idx_tx_package_state
     ON airgap.t_airgap_transactions(package_state);
 
+alter table airgap.t_airgap_transactions
+    add column if not exists direction varchar(32);
+
+alter table airgap.t_airgap_transactions
+    add column if not exists upload_package_id varchar(36);
+
+alter table airgap.t_airgap_transactions
+    add constraint fk_tx_upload_package
+        foreign key (upload_package_id)
+            references airgap.t_airgap_upload_package(id);
+
+alter table airgap.t_airgap_transactions
+    alter column package_id drop not null;
+
+create index if not exists idx_tx_upload_package_id
+    on airgap.t_airgap_transactions(upload_package_id);
+
+create index if not exists idx_tx_direction
+    on airgap.t_airgap_transactions(direction);
+
+
+-- ================================
+-- UPSTREAM PACKAGE TABLE
+-- ================================
+create table if not exists airgap.t_airgap_upload_package
+(
+    id                    varchar(36) primary key,
+    package_name          varchar(255) not null,
+    sequence_index        bigint       not null,
+    original_tar_path     varchar(1024) not null,
+    archived_tar_path     varchar(1024),
+    work_dir_path         varchar(1024),
+    outer_dir_path        varchar(1024),
+    data_dir_path         varchar(1024),
+    manifest_relative_path varchar(512),
+    manifest_md5_data_tar varchar(128),
+    status                varchar(32)  not null,
+    note                  varchar(2000),
+    file_count            integer,
+    total_size_bytes      bigint,
+    uploaded_by           varchar(64),
+    imported_at           timestamp,
+    archived_at           timestamp,
+    created_at            timestamp not null,
+    updated_at            timestamp not null,
+    version               bigint not null
+    );
+
+create unique index if not exists idx_upload_pkg_name
+    on airgap.t_airgap_upload_package(package_name);
+
+create unique index if not exists idx_upload_pkg_seq
+    on airgap.t_airgap_upload_package(sequence_index);
+
+create index if not exists idx_upload_pkg_status
+    on airgap.t_airgap_upload_package(status);
+
+-- ================================
+-- UPSTREAM FILE TABLE
+-- ================================
+create table if not exists airgap.t_airgap_upload_file
+(
+    id                    varchar(36) primary key,
+    upload_package_id     varchar(36) not null,
+    relative_path         varchar(1024) not null,
+    extracted_absolute_path varchar(1024),
+    delivered_absolute_path varchar(1024),
+    size_bytes            bigint not null,
+    checksum_md5          varchar(128),
+    status                varchar(32) not null,
+    note                  varchar(2000),
+    created_at            timestamp not null,
+    updated_at            timestamp not null,
+    version               bigint not null,
+    constraint fk_upload_file_pkg
+    foreign key (upload_package_id)
+    references airgap.t_airgap_upload_package(id)
+    );
+
+create index if not exists idx_upload_file_pkg
+    on airgap.t_airgap_upload_file(upload_package_id);
+
+create index if not exists idx_upload_file_status
+    on airgap.t_airgap_upload_file(status);
+
+-- ================================
+-- UPSTREAM INDEX TABLE
+-- ================================
+
+create table if not exists airgap.t_airgap_upload_sequence
+(
+    id                  bigint primary key,
+    last_sequence_index bigint      not null,
+    updated_at          timestamp   not null
+);
+
+insert into airgap.t_airgap_upload_sequence (id, last_sequence_index, updated_at)
+values (1, 0, now())
+    on conflict (id) do nothing;

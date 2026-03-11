@@ -1,17 +1,23 @@
 package it.egeos.cut3g.airgap.service.upstream;
 
+import it.egeos.cut3g.airgap.api.dto.PackageDto;
+import it.egeos.cut3g.airgap.api.dto.UploadPackageDto;
 import it.egeos.cut3g.airgap.api.dto.UpstreamStatusResponse;
 import it.egeos.cut3g.airgap.exceptions.DownstreamIOException;
 import it.egeos.cut3g.airgap.exceptions.PackageFileNotFoundException;
 import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
+import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.enums.TransactionState;
+import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.TransactionRepository;
+import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
 import it.egeos.cut3g.airgap.service.files.TransactionService;
+import it.egeos.cut3g.airgap.service.importing.IncomingPackageImportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +34,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class UploadService {
@@ -47,93 +54,49 @@ public class UploadService {
     private TransactionRepository transactionRepository;
 
     @Autowired
-    private TransactionService transactionService;
+    private IncomingPackageImportService incomingPackageImportService;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public PackageEntity uploadPackage(String packageId, String username) {
-        PackageEntity pkg = packageRepository.findById(packageId)
-                .orElseThrow(() -> new PackageNotFoundException(packageId));
+    @Autowired
+    private UploadPackageRepository uploadPackageRepository;
 
+    public UploadPackageEntity uploadPackage(String packageName, String username) {
+        Path uploadedRoot = Paths.get(uploadedDir).toAbsolutePath().normalize();
+        Path tarPath = uploadedRoot.resolve(packageName).normalize();
 
-        if (pkg.getState() == PackageState.UPLOADED) {
-            throw new IllegalStateException("Package already uploaded: " + packageId);
+        if (!tarPath.startsWith(uploadedRoot)) {
+            throw new SecurityException("Package path outside upload dir: " + tarPath);
         }
 
-        Path sourcePath = Paths.get(pkg.getPackagePath());
-
-        if (!Files.exists(sourcePath)) {
-            throw new PackageFileNotFoundException(sourcePath.toString());
+        if (!Files.exists(tarPath)) {
+            throw new IllegalArgumentException("Package file not found: " + tarPath);
         }
 
-        TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.UPSTREAM, username);
+        log.info("UPLOAD REQUEST packageName={} path={}", packageName, tarPath);
 
-        try {
-            Path uploadBase = Paths.get(uploadedDir).toAbsolutePath().normalize();
-            Path sourceAbs  = sourcePath.toAbsolutePath().normalize();
-
-            if (!sourceAbs.startsWith(uploadBase)) {
-                throw new SecurityException(
-                        "Invalid source path: expected under " + uploadBase + " but was " + sourceAbs
-                );
-            }
-        } catch (Exception e) {
-            throw new DownstreamIOException("Invalid source path validation", e);
-        }
-
-        try {
-            Path targetDir = Paths.get(uploadedDir);
-            Files.createDirectories(targetDir);
-
-            Path targetPath = targetDir.resolve(sourcePath.getFileName());
-
-            log.info("Uploading package {} from {} to {}", packageId, sourcePath, targetPath);
-
-            Files.move(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
-
-            pkg.setPackagePath(targetPath.toString());
-            pkg.setState(PackageState.UPLOADED);
-            pkg.setExportedAt(Instant.now());
-
-            PackageEntity saved = packageRepository.save(pkg);
-
-            transactionService.closeSuccess(tx.getId(), "SUCCESS: Uploaded successfully", Direction.UPSTREAM);
-
-            log.info("Package {} uploaded successfully", packageId);
-
-            return saved;
-
-        } catch (IOException e) {
-            transactionService.closeFailure(tx.getId(), "FAILED: Upload error", Direction.UPSTREAM, username);
-            log.error("Error while uploading package {}", packageId, e);
-            throw new DownstreamIOException("Error while uploading package " + packageId, e);
-        }
+        return incomingPackageImportService.importUploadedPackage(tarPath, username);
     }
 
     public UpstreamStatusResponse status() {
         UpstreamStatusResponse out = new UpstreamStatusResponse();
 
         out.transactionOngoing = transactionRepository.existsByState(TransactionState.STARTED);
-        out.readyForUploadCount = packageRepository.findByStates(List.of(PackageState.CREATED)).size();
 
-        transactionRepository.findTopByOrderByStartTsDesc().ifPresent(tx -> {
-            out.lastTransactionStart = tx.getStartTs();
+        List<UploadPackageEntity> received = uploadPackageRepository.findByStatus(UploadPackageStatus.RECEIVED);
+        out.readyForUploadCount = received.size();
 
-            if (tx.getAirgapPackage() != null) {
-                String pkgId = tx.getAirgapPackage().getId();
-                out.lastPackageId = pkgId;
-                out.lastPackageState = resolvePackageState(pkgId).orElse(null);
-            } else {
-                out.lastPackageId = null;
-                out.lastPackageState = null;
-            }
+        Optional<UploadPackageEntity> last = uploadPackageRepository.findAll().stream()
+                .max((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()));
+
+        last.ifPresent(pkg -> {
+            out.lastPackageId = pkg.getId();
+            out.lastPackageState = pkg.getStatus().name();
+            out.lastTransactionStart = pkg.getCreatedAt();
         });
-
         return out;
-
     }
 
-    private Optional<String> resolvePackageState(String packageId) {
-        if (packageId == null) return Optional.empty();
-        return packageRepository.findById(packageId).map(p -> p.getState().name());
+    public List<UploadPackageDto> listReadyForDownload() {
+        List<UploadPackageEntity> pkgs = uploadPackageRepository.findAll();
+        return pkgs.stream().map(UploadPackageDto::from).collect(Collectors.toList());
     }
 }

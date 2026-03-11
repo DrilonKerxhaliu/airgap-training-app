@@ -69,7 +69,7 @@ public class DownstreamService {
     private TransferProtocolService protocolService;
 
     public List<PackageDto> listReadyForDownload() {
-        List<PackageEntity> pkgs = packageRepository.findByStates(List.of(PackageState.CREATED));
+        List<PackageEntity> pkgs = packageRepository.findAll();
         return pkgs.stream().map(PackageDto::from).collect(Collectors.toList());
     }
 
@@ -110,7 +110,7 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM, username);
         try {
             markExported(pkg);
-            transactionService.closeSuccess(tx.getId(), "SUCCESS: Downloaded successfully", Direction.DOWNSTREAM);
+            transactionService.closeSuccess(tx.getId(), "SUCCESS: Downloaded successfully");
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,
                             "attachment; filename=\"" + pkg.getPackageName() + ".tar\"")
@@ -118,7 +118,7 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
                     .contentLength(Files.size(tarPath))
                     .body(new FileSystemResource(tarPath));
         } catch (RuntimeException ex) {
-            transactionService.closeFailure(tx.getId(), "FAILED: Download error", Direction.DOWNSTREAM, username);
+            transactionService.closeFailure(tx.getId(), "FAILED: Download error", username);
             throw ex;
         }
         catch (IOException e) {
@@ -142,11 +142,11 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
                 throw new PackageFileNotFoundException(tarPath.toString());
             }
 
-            transactionService.closeSuccess(tx.getId(), "SUCCESS: Generated and downloaded latest package", Direction.DOWNSTREAM);
+            transactionService.closeSuccess(tx.getId(), "SUCCESS: Generated and downloaded latest package");
             return pkg;
 
         } catch (RuntimeException ex) {
-            transactionService.closeFailure(tx.getId(), "FAILED: Downstream transaction failed - " + ex.getMessage(), Direction.DOWNSTREAM, username);
+            transactionService.closeFailure(tx.getId(), "FAILED: Downstream transaction failed - " + ex.getMessage(), username);
             throw ex;
         }
     }
@@ -222,7 +222,7 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         // Exported, downloaded by downstream
         if (pkg.getExportedAt() == null) {
             pkg.setExportedAt(Instant.now());
-            pkg.setState(PackageState.PROCESSING);
+            pkg.setState(PackageState.SENT);
             packageRepository.save(pkg);
         }
     }
@@ -233,10 +233,10 @@ public void transferAsync(PackageEntity pkg, String username) {
     try {
         protocolService.transfer(pkg);
         pkg.setState(PackageState.SENT);
-        transactionService.closeSuccess(tx.getId(), "SUCCESS: Package transferred", Direction.DOWNSTREAM);
+        transactionService.closeSuccess(tx.getId(), "SUCCESS: Package transferred");
     } catch (Exception ex) {
         pkg.setState(PackageState.FAILED);
-        transactionService.closeFailure(tx.getId(), "FAILED: Transfer error - " + ex.getMessage(), Direction.DOWNSTREAM, username);
+        transactionService.closeFailure(tx.getId(), "FAILED: Transfer error - " + ex.getMessage(), username);
     }
     packageRepository.save(pkg);
 }
