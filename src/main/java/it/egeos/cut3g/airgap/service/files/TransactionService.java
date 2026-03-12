@@ -6,6 +6,7 @@ import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.enums.TransactionState;
+import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.TransactionRepository;
 import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
@@ -58,6 +59,7 @@ public class TransactionService {
 
         TransactionEntity tx = new TransactionEntity();
         tx.setUploadPackage(uploadPkg);
+        tx.setUploadPackageStatus(uploadPkg.getStatus());
         tx.setDirection(direction);
         tx.setStartTs(Instant.now());
         tx.setState(TransactionState.STARTED);
@@ -79,8 +81,14 @@ public class TransactionService {
         tx.setEndTs(Instant.now());
         tx.setNote(note);
 
-        if (tx.getAirgapPackage() != null) {
-            tx.setPackageState(tx.getAirgapPackage().getState());
+        if (tx.isDownstream()) {
+            if (tx.getAirgapPackage() != null) {
+                tx.setPackageState(tx.getAirgapPackage().getState());
+            }
+        } else if (tx.isUpstream()) {
+            if (tx.getUploadPackage() != null) {
+                tx.setUploadPackageStatus(tx.getUploadPackage().getStatus());
+            }
         }
 
         transactionRepository.save(tx);
@@ -98,10 +106,18 @@ public class TransactionService {
         tx.setNote(note);
         tx.setInitiatedBy(username != null ? username : tx.getInitiatedBy());
 
-        if (tx.getAirgapPackage() != null) {
-            tx.setPackageState(tx.getAirgapPackage().getState());
-        } else {
-            tx.setPackageState(PackageState.FAILED);
+        if (tx.isDownstream()) {
+            if (tx.getAirgapPackage() != null) {
+                tx.setPackageState(tx.getAirgapPackage().getState());
+            } else {
+                tx.setPackageState(PackageState.FAILED);
+            }
+        } else if (tx.isUpstream()) {
+            if (tx.getUploadPackage() != null) {
+                tx.setUploadPackageStatus(tx.getUploadPackage().getStatus());
+            } else {
+                tx.setUploadPackageStatus(UploadPackageStatus.FAILED);
+            }
         }
 
         transactionRepository.save(tx);

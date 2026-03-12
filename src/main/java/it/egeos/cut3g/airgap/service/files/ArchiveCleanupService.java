@@ -1,12 +1,9 @@
 package it.egeos.cut3g.airgap.service.files;
 
-import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
 import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
-import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
-import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,10 +33,8 @@ public class ArchiveCleanupService {
     private boolean enabled;
 
     @Autowired
-    private PackageRepository packageRepository;
-
-    @Autowired
     private TransactionService transactionService;
+
     @Autowired
     private UploadPackageRepository uploadPackageRepository;
 
@@ -54,15 +49,15 @@ public class ArchiveCleanupService {
         Instant threshold =
                 Instant.now().minus(retentionDays, ChronoUnit.DAYS);
 
-        List<PackageEntity> candidates =
-                packageRepository.findArchivedBefore(
-                        PackageState.ARCHIVED,
+        List<UploadPackageEntity> candidates =
+                uploadPackageRepository.findArchivedBefore(
+                        UploadPackageStatus.ARCHIVED,
                         threshold
                 );
 
         log.info("Archive cleanup started – {} candidates found", candidates.size());
 
-        for (PackageEntity pkg : candidates) {
+        for (UploadPackageEntity pkg : candidates) {
             deleteSinglePackage(pkg,null);
         }
 
@@ -82,10 +77,10 @@ public class ArchiveCleanupService {
             return;
         }
 
-     //   deleteSinglePackage(pkg, username);
+     deleteSinglePackage(pkg, username);
     }
 
-    private void deleteSinglePackage(PackageEntity pkg, String username) {
+    private void deleteSinglePackage(UploadPackageEntity pkg, String username) {
         TransactionEntity tx =
                transactionService.startTransaction(
                         pkg.getId(),
@@ -93,10 +88,10 @@ public class ArchiveCleanupService {
                        username
                 );
 
-        tx.setPackageState(pkg.getState());
+        tx.setUploadPackageStatus(pkg.getStatus());
 
 
-        Path tarPath = Paths.get(pkg.getPackagePath());
+        Path tarPath = Paths.get(pkg.getArchivedTarPath());
 
         try {
             if (Files.exists(tarPath)) {
@@ -106,11 +101,11 @@ public class ArchiveCleanupService {
                 log.warn("Archive file not found: {}", tarPath);
             }
 
-            pkg.setState(PackageState.DELETED);
-            pkg.setNotes("Deleted by archive cleanup job");
-            pkg.setExportedAt(Instant.now()); // last state change
+            pkg.setStatus(UploadPackageStatus.DELETED);
+            pkg.setNote("Deleted by archive cleanup job");
+            pkg.setRemovedAt(Instant.now()); // last state change
 
-            packageRepository.save(pkg);
+            uploadPackageRepository.save(pkg);
 
             transactionService.closeSuccess(
                     tx.getId(),

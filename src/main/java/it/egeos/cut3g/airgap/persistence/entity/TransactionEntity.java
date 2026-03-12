@@ -34,24 +34,26 @@ public class TransactionEntity {
     @JoinColumn(name = "package_id")
     private PackageEntity airgapPackage;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "package_state")
+    private PackageState packageState;
+
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "upload_package_id")
     private UploadPackageEntity uploadPackage;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "package_state")
-    private PackageState packageState;
-
-    @Enumerated(EnumType.STRING)
     @Column(name = "upload_package_status")
     private UploadPackageStatus uploadPackageStatus;
+
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TransactionState state = TransactionState.STARTED;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "direction", nullable = false, length = 32)
+    @Column(nullable = false, length = 32)
     private Direction direction;
 
     @Column(name = "start_ts", nullable = false)
@@ -74,7 +76,10 @@ public class TransactionEntity {
     @Column(name = "initiated_by", length = 64, nullable = false)
     private String initiatedBy;
 
-    public String getId() { return id; }
+
+    public String getId() {
+        return id;
+    }
 
     public long getVersion() {
         return version;
@@ -110,6 +115,22 @@ public class TransactionEntity {
 
     public void setPackageState(PackageState packageState) {
         this.packageState = packageState;
+    }
+
+    public UploadPackageStatus getUploadPackageStatus() {
+        return uploadPackageStatus;
+    }
+
+    public void setUploadPackageStatus(UploadPackageStatus uploadPackageStatus) {
+        this.uploadPackageStatus = uploadPackageStatus;
+    }
+
+    public boolean isDownstream() {
+        return direction == Direction.DOWNSTREAM;
+    }
+
+    public boolean isUpstream() {
+        return direction == Direction.UPSTREAM;
     }
 
     public Direction getDirection() {
@@ -158,13 +179,5 @@ public class TransactionEntity {
 
     public void setInitiatedBy(String initiatedBy) {
         this.initiatedBy = initiatedBy;
-    }
-
-    public UploadPackageStatus getUploadPackageStatus() {
-        return uploadPackageStatus;
-    }
-
-    public void setUploadPackageStatus(UploadPackageStatus uploadPackageStatus) {
-        this.uploadPackageStatus = uploadPackageStatus;
     }
 }
