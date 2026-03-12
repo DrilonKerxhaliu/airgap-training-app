@@ -65,61 +65,6 @@ CREATE SEQUENCE IF NOT EXISTS airgap.package_progressive_seq START 1;
 ALTER TABLE airgap.t_airgap_package
     ALTER COLUMN progressive_number SET DEFAULT nextval('airgap.package_progressive_seq');
 
-
--- ================================
--- DOWNSTREAM / UPSTREAM TRANSACTIONS
--- ================================
-
-CREATE TABLE airgap.t_airgap_transactions
-(
-    id VARCHAR(36) PRIMARY KEY,
-
-    version BIGINT NOT NULL DEFAULT 0,
-
-    state VARCHAR(32) NOT NULL,
-
-    direction VARCHAR(32) NOT NULL,
-
-    start_ts TIMESTAMP NOT NULL,
-    end_ts TIMESTAMP,
-
-    note TEXT,
-
-    created_at TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP NOT NULL DEFAULT now(),
-
-    initiated_by VARCHAR(64) NOT NULL,
-
-    package_id VARCHAR(36),
-    upload_package_id VARCHAR(36),
-
-    package_state VARCHAR(32),
-    upload_package_status VARCHAR(32),
-
-    CONSTRAINT fk_tx_package
-        FOREIGN KEY (package_id)
-            REFERENCES airgap.t_airgap_package(id)
-            ON DELETE SET NULL,
-
-    CONSTRAINT fk_tx_upload_package
-        FOREIGN KEY (upload_package_id)
-            REFERENCES airgap.t_airgap_upload_package(id)
-            ON DELETE SET NULL
-);
-
-CREATE INDEX idx_tx_state
-    ON airgap.t_airgap_transactions(state);
-
-CREATE INDEX idx_tx_package_id
-    ON airgap.t_airgap_transactions(package_id);
-
-CREATE INDEX idx_tx_upload_package_id
-    ON airgap.t_airgap_transactions(upload_package_id);
-
-CREATE INDEX idx_tx_direction
-    ON airgap.t_airgap_transactions(direction);
-
-
 -- ================================
 -- UPSTREAM PACKAGE TABLE
 -- ================================
@@ -198,3 +143,57 @@ create table if not exists airgap.t_airgap_upload_sequence
 insert into airgap.t_airgap_upload_sequence (id, last_sequence_index, updated_at)
 values (1, 0, now())
     on conflict (id) do nothing;
+
+-- ================================
+-- DOWNSTREAM / UPSTREAM TRANSACTIONS
+-- ================================
+
+CREATE TABLE airgap.t_airgap_transactions
+(
+    id VARCHAR(36) PRIMARY KEY,
+
+    version BIGINT NOT NULL DEFAULT 0,
+
+    state VARCHAR(32) NOT NULL,
+
+    direction VARCHAR(32) NOT NULL,
+
+    start_ts TIMESTAMP NOT NULL,
+    end_ts TIMESTAMP,
+
+    note TEXT,
+
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now(),
+
+    initiated_by VARCHAR(64) NOT NULL,
+
+    package_id VARCHAR(36),
+    upload_package_id VARCHAR(36),
+
+    package_state VARCHAR(32),
+    upload_package_status VARCHAR(32),
+
+    CONSTRAINT fk_tx_package
+        FOREIGN KEY (package_id)
+            REFERENCES airgap.t_airgap_package(id)
+            ON DELETE SET NULL,
+
+    CONSTRAINT fk_tx_upload_package
+        FOREIGN KEY (upload_package_id)
+            REFERENCES airgap.t_airgap_upload_package(id)
+            ON DELETE SET NULL
+);
+
+CREATE INDEX idx_tx_state
+    ON airgap.t_airgap_transactions(state);
+
+CREATE INDEX idx_tx_package_id
+    ON airgap.t_airgap_transactions(package_id);
+
+CREATE INDEX idx_tx_upload_package_id
+    ON airgap.t_airgap_transactions(upload_package_id);
+
+CREATE INDEX idx_tx_direction
+    ON airgap.t_airgap_transactions(direction);
+
