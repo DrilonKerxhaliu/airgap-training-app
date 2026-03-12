@@ -75,8 +75,8 @@ public class UploadPackageEntity {
     private Instant createdAt;
 
     @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+    @Column(name = "removed_at")
+    private Instant removedAt;
 
     @Column(name = "uploaded_by", length = 64, nullable = false)
     private String uploadedBy;
@@ -213,8 +213,12 @@ public class UploadPackageEntity {
         return createdAt;
     }
 
-    public Instant getUpdatedAt() {
-        return updatedAt;
+    public Instant getRemovedAt() {
+        return removedAt;
+    }
+
+    public void setRemovedAt(Instant removedAt) {
+        this.removedAt = removedAt;
     }
 
     public String getUploadedBy() {

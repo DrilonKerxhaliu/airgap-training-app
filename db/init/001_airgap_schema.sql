@@ -70,23 +70,40 @@ ALTER TABLE airgap.t_airgap_package
 -- DOWNSTREAM / UPSTREAM TRANSACTIONS
 -- ================================
 
-CREATE TABLE t_airgap_transactions (
+CREATE TABLE airgap.t_airgap_transactions
+(
     id VARCHAR(36) PRIMARY KEY,
+
     version BIGINT NOT NULL DEFAULT 0,
+
     state VARCHAR(32) NOT NULL,
+
+    direction VARCHAR(32) NOT NULL,
+
     start_ts TIMESTAMP NOT NULL,
     end_ts TIMESTAMP,
+
     note TEXT,
+
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP NOT NULL DEFAULT now(),
 
-    package_id VARCHAR(36),
-    package_state VARCHAR(32),
     initiated_by VARCHAR(64) NOT NULL,
+
+    package_id VARCHAR(36),
+    upload_package_id VARCHAR(36),
+
+    package_state VARCHAR(32),
+    upload_package_status VARCHAR(32),
 
     CONSTRAINT fk_tx_package
         FOREIGN KEY (package_id)
             REFERENCES airgap.t_airgap_package(id)
+            ON DELETE SET NULL,
+
+    CONSTRAINT fk_tx_upload_package
+        FOREIGN KEY (upload_package_id)
+            REFERENCES airgap.t_airgap_upload_package(id)
             ON DELETE SET NULL
 );
 
@@ -96,28 +113,11 @@ CREATE INDEX idx_tx_state
 CREATE INDEX idx_tx_package_id
     ON airgap.t_airgap_transactions(package_id);
 
-CREATE INDEX idx_tx_package_state
-    ON airgap.t_airgap_transactions(package_state);
+CREATE INDEX idx_tx_upload_package_id
+    ON airgap.t_airgap_transactions(upload_package_id);
 
-alter table airgap.t_airgap_transactions
-    add column if not exists direction varchar(32);
-
-alter table airgap.t_airgap_transactions
-    add column if not exists upload_package_id varchar(36);
-
-alter table airgap.t_airgap_transactions
-    add constraint fk_tx_upload_package
-        foreign key (upload_package_id)
-            references airgap.t_airgap_upload_package(id);
-
-alter table airgap.t_airgap_transactions
-    alter column package_id drop not null;
-
-create index if not exists idx_tx_upload_package_id
-    on airgap.t_airgap_transactions(upload_package_id);
-
-create index if not exists idx_tx_direction
-    on airgap.t_airgap_transactions(direction);
+CREATE INDEX idx_tx_direction
+    ON airgap.t_airgap_transactions(direction);
 
 
 -- ================================
@@ -143,7 +143,7 @@ create table if not exists airgap.t_airgap_upload_package
     imported_at           timestamp,
     archived_at           timestamp,
     created_at            timestamp not null,
-    updated_at            timestamp not null,
+    removed_at            timestamp,
     version               bigint not null
     );
 
