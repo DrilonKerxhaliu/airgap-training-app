@@ -53,9 +53,7 @@ public class TransactionService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public TransactionEntity startUploadTransaction(String uploadPackageId, Direction direction, String username) {
-        UploadPackageEntity uploadPkg = uploadPackageRepository.findById(uploadPackageId)
-                .orElseThrow(() -> new IllegalArgumentException("Upload package not found: " + uploadPackageId));
+    public TransactionEntity startUploadTransaction(UploadPackageEntity uploadPkg, Direction direction, String username) {
 
         TransactionEntity tx = new TransactionEntity();
         tx.setUploadPackage(uploadPkg);
@@ -68,7 +66,7 @@ public class TransactionService {
 
         transactionRepository.save(tx);
 
-        log.info("{} TX STARTED id={} uploadPackageId={}", direction, tx.getId(), uploadPackageId);
+        log.info("{} TX STARTED id={} uploadPackageId={}", direction, tx.getId(), uploadPkg.getId());
         return tx;
     }
 
@@ -123,5 +121,21 @@ public class TransactionService {
         transactionRepository.save(tx);
 
         log.warn("{} TX FAILED id={} note={}", tx.getDirection(), tx.getId(), note);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public TransactionEntity noPackageTransaction(Direction direction, String note, String username) {
+
+        TransactionEntity tx = new TransactionEntity();
+        tx.setDirection(direction);
+        tx.setStartTs(Instant.now());
+        tx.setState(TransactionState.FAILED);
+        tx.setInitiatedBy(username != null ? username : "auto");
+        tx.setNote(note);
+
+        transactionRepository.save(tx);
+
+        log.info("{} TX STARTED id={} no package created !", direction, tx.getId());
+        return tx;
     }
 }

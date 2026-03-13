@@ -17,9 +17,6 @@ public class FileItemEntity {
     @Column(length = 36)
     private String id = UUID.randomUUID().toString();
 
-    @Version
-    private long version;
-
     @Column(nullable = false)
     private String relativePath;
 
@@ -38,9 +35,6 @@ public class FileItemEntity {
     private PackageEntity airgapPackage;
 
     public String getId() { return id; }
-
-    public long getVersion() { return version; }
-    public void setVersion(long version) { this.version = version; }
 
     public String getRelativePath() { return relativePath; }
     public void setRelativePath(String relativePath) { this.relativePath = relativePath; }

@@ -21,9 +21,6 @@ public class UploadPackageEntity {
     @Column(length = 36)
     private String id = UUID.randomUUID().toString();
 
-    @Version
-    private long version;
-
     @Column(name = "package_name", nullable = false, unique = true)
     private String packageName;
 
@@ -83,10 +80,6 @@ public class UploadPackageEntity {
 
     public String getId() {
         return id;
-    }
-
-    public long getVersion() {
-        return version;
     }
 
     public String getPackageName() {
