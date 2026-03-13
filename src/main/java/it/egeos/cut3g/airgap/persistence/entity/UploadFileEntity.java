@@ -16,9 +16,6 @@ public class UploadFileEntity {
     @Column(length = 36)
     private String id = UUID.randomUUID().toString();
 
-    @Version
-    private long version;
-
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "upload_package_id", nullable = false)
     private UploadPackageEntity uploadPackage;
@@ -55,10 +52,6 @@ public class UploadFileEntity {
 
     public String getId() {
         return id;
-    }
-
-    public long getVersion() {
-        return version;
     }
 
     public UploadPackageEntity getUploadPackage() {

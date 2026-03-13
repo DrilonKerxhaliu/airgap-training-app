@@ -41,9 +41,6 @@ public class UploadService {
 
     private static final Logger log = LoggerFactory.getLogger(UploadService.class);
 
-    @Value("${airgap.incoming.packages.dir}")
-    private String incomingDir;
-
     @Value("${airgap.uploaded.packages.dir}")
     private String uploadedDir;
 

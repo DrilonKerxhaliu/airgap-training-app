@@ -28,6 +28,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 
@@ -82,8 +83,8 @@ public class DownstreamService {
             throw new PackageFileNotFoundException(tarPath.toString());
         }
 
-        try{
-        List<FileContentDto> files = tarListingService.listFilesFromSubTars(tarPath);
+        try {
+            List<FileContentDto> files = tarListingService.listFilesFromSubTars(tarPath);
             PackageContentResponse resp = new PackageContentResponse();
             resp.packageId = pkg.getId();
             resp.packageName = pkg.getPackageName();
@@ -101,10 +102,10 @@ public class DownstreamService {
         return fileDiscoveryService.latestFolderContentGrouped();
     }
 
-    @Transactional
-public ResponseEntity<FileSystemResource> downloadExistingPackage(String packageId, String username) {
-    PackageEntity pkg = packageRepository.findById(packageId)
-            .orElseThrow(() -> new PackageNotFoundException(packageId));
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ResponseEntity<FileSystemResource> downloadExistingPackage(String packageId, String username) {
+        PackageEntity pkg = packageRepository.findById(packageId)
+                .orElseThrow(() -> new PackageNotFoundException(packageId));
 
         Path tarPath = Paths.get(pkg.getPackagePath());
         TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM, username);
@@ -120,19 +121,28 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         } catch (RuntimeException ex) {
             transactionService.closeFailure(tx.getId(), "FAILED: Download error", username);
             throw ex;
-        }
-        catch (IOException e) {
-        throw new DownstreamIOException("Unable to stream tar", e);
+        } catch (IOException e) {
+            throw new DownstreamIOException("Unable to stream tar", e);
         }
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PackageEntity generateAndDeliverLatest(String username) {
         TransactionEntity tx = new TransactionEntity();
         try {
             Optional<PackageEntity> created = packagingService.createLatestOrAutoPackage(username);
             if (created.isEmpty()) {
-                throw new NoNewFilesToPackageException();
+
+                transactionService.noPackageTransaction(
+                        Direction.DOWNSTREAM,
+                        "No NEW files available for packaging",
+                        username
+                );
+
+                log.info("No NEW files to package");
+                PackageEntity failed = new PackageEntity();
+                failed.setState(PackageState.FAILED);
+                return failed;
             }
             PackageEntity pkg = created.get();
             tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM, username);
@@ -151,7 +161,7 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         }
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendPackages(List<String> packageIds, String username) {
 
         for (String id : packageIds) {
@@ -227,17 +237,17 @@ public ResponseEntity<FileSystemResource> downloadExistingPackage(String package
         }
     }
 
-  @Async
-public void transferAsync(PackageEntity pkg, String username) {
-    TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM, username);
-    try {
-        protocolService.transfer(pkg);
-        pkg.setState(PackageState.SENT);
-        transactionService.closeSuccess(tx.getId(), "SUCCESS: Package transferred");
-    } catch (Exception ex) {
-        pkg.setState(PackageState.FAILED);
-        transactionService.closeFailure(tx.getId(), "FAILED: Transfer error - " + ex.getMessage(), username);
+    @Async
+    public void transferAsync(PackageEntity pkg, String username) {
+        TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM, username);
+        try {
+            protocolService.transfer(pkg);
+            pkg.setState(PackageState.SENT);
+            transactionService.closeSuccess(tx.getId(), "SUCCESS: Package transferred");
+        } catch (Exception ex) {
+            pkg.setState(PackageState.FAILED);
+            transactionService.closeFailure(tx.getId(), "FAILED: Transfer error - " + ex.getMessage(), username);
+        }
+        packageRepository.save(pkg);
     }
-    packageRepository.save(pkg);
-}
 }

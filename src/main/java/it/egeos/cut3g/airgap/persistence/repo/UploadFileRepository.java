@@ -10,4 +10,6 @@ import java.util.List;
 public interface UploadFileRepository
         extends JpaRepository<UploadFileEntity, String> {
     List<UploadFileEntity> findByUploadPackageId(String uploadPackageId);
+
+    void deleteByUploadPackageId(String uploadPackageId);
 }

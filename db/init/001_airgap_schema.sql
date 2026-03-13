@@ -29,7 +29,6 @@ CREATE TABLE t_airgap_package (
 
 CREATE TABLE t_airgap_file_item (
                                     id VARCHAR(36) PRIMARY KEY,
-                                    version BIGINT NOT NULL DEFAULT 0,
                                     relative_path TEXT NOT NULL,
                                     size_bytes BIGINT NOT NULL,
                                     received_time TIMESTAMP NOT NULL,
@@ -88,8 +87,7 @@ create table if not exists airgap.t_airgap_upload_package
     imported_at           timestamp,
     archived_at           timestamp,
     created_at            timestamp not null,
-    removed_at            timestamp,
-    version               bigint not null
+    removed_at            timestamp
     );
 
 create unique index if not exists idx_upload_pkg_name
@@ -117,7 +115,6 @@ create table if not exists airgap.t_airgap_upload_file
     note                  varchar(2000),
     created_at            timestamp not null,
     updated_at            timestamp not null,
-    version               bigint not null,
     constraint fk_upload_file_pkg
     foreign key (upload_package_id)
     references airgap.t_airgap_upload_package(id)
@@ -151,8 +148,6 @@ values (1, 0, now())
 CREATE TABLE airgap.t_airgap_transactions
 (
     id VARCHAR(36) PRIMARY KEY,
-
-    version BIGINT NOT NULL DEFAULT 0,
 
     state VARCHAR(32) NOT NULL,
 

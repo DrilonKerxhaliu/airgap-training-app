@@ -27,9 +27,6 @@ public class TransactionEntity {
     @Column(length = 36)
     private String id = UUID.randomUUID().toString();
 
-    @Version
-    private long version;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "package_id")
     private PackageEntity airgapPackage;
@@ -79,10 +76,6 @@ public class TransactionEntity {
 
     public String getId() {
         return id;
-    }
-
-    public long getVersion() {
-        return version;
     }
 
     public TransactionState getState() {

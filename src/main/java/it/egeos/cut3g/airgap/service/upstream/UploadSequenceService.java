@@ -16,7 +16,8 @@ public class UploadSequenceService {
     private UploadSequenceRepository repository;
 
     @Transactional
-    public long assertExpectedNext(long incomingSequence) {
+    public void reserveNext(long incomingSequence) {
+
         UploadSequenceEntity seq = repository.findByIdForUpdate(1L)
                 .orElseThrow(() -> new IllegalStateException("Upload sequence row id=1 not found"));
 
@@ -31,22 +32,10 @@ public class UploadSequenceService {
             );
         }
 
-        return expected;
-    }
-
-    @Transactional
-    public void markProcessed(long sequence) {
-        UploadSequenceEntity seq = repository.findByIdForUpdate(1L)
-                .orElseThrow(() -> new IllegalStateException("Upload sequence row id=1 not found"));
-
-        long expected = seq.getLastSequenceIndex() + 1;
-        if (sequence != expected) {
-            throw new IllegalStateException("Cannot mark processed. Expected next="
-                    + expected + " but got " + sequence);
-        }
-
-        seq.setLastSequenceIndex(sequence);
+        // reserve immediately
+        seq.setLastSequenceIndex(incomingSequence);
         seq.setUpdatedAt(Instant.now());
+
         repository.save(seq);
     }
 }
