@@ -59,14 +59,12 @@ services:
       AIRGAP_AES_KEY: ${AIRGAP_AES_KEY}
 
     volumes:
-      - ./config/config.json:/opt/airgap/config.json
-      - ./data/collection/in:/opt/airgap/data/collect/in
-      - ./data/collection/out:/opt/airgap/data/collect/out
-      - ./data/incoming/archive:/opt/airgap/data/incoming/archive
+      - ./config/config.json:/opt/airgap/config/config.json
+      - ./data:/opt/airgap/data
       - ./downstream/data/package-output:/opt/airgap/data/original-packages
-      - ./upstream/data/upload-input:/opt/airgap/data/upload
 
     restart: always
+
     networks:
       - airgap-network
 
