@@ -72,7 +72,7 @@ create table if not exists airgap.t_airgap_upload_package
     id                    varchar(36) primary key,
     package_name          varchar(255) not null,
     sequence_index        bigint       not null,
-    original_tar_path     varchar(1024) not null,
+    original_tar_path     varchar(1024),
     archived_tar_path     varchar(1024),
     work_dir_path         varchar(1024),
     outer_dir_path        varchar(1024),
@@ -86,7 +86,7 @@ create table if not exists airgap.t_airgap_upload_package
     uploaded_by           varchar(64),
     imported_at           timestamp,
     archived_at           timestamp,
-    created_at            timestamp not null,
+    created_at            timestamp,
     removed_at            timestamp
     );
 

@@ -8,4 +8,5 @@ public class UpstreamStatusResponse {
     public Instant lastTransactionStart;
     public String lastPackageId;
     public String lastPackageState;
+    public String lastPackageName;
 }

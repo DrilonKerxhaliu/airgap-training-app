@@ -13,7 +13,7 @@ public class UploadPackageDto {
     public String packageName;
     public String packagePath;
     public String md5DataTar;
-    public long totalSizeBytes;
+    public Long totalSizeBytes;
     public UploadPackageStatus state;
     public Instant importedAt;
     public String uploadedBy;

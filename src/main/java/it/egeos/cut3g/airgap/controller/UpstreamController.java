@@ -62,13 +62,13 @@ public class UpstreamController {
 
     @GetMapping("/package/list")
     public ApiResponse<List<UploadPackageDto>> listPackagesReady() {
-        return ApiResponse.ok("OK", uploadService.listReadyForDownload());
+        return ApiResponse.ok("OK", uploadService.listOfUploadPackages());
     }
 
     @GetMapping("/package/history/list")
     public ApiResponse<List<UploadPackageDto>> history() {
         List<UploadPackageDto> list = uploadPackageRepository.findAll().stream()
-                .filter(p -> p.getStatus() == UploadPackageStatus.IMPORTED)
+                .filter(p -> (p.getStatus() == UploadPackageStatus.IMPORTED) || (p.getStatus() == UploadPackageStatus.ARCHIVED))
                 .map(UploadPackageDto::from)
                 .collect(Collectors.toList());
         return ApiResponse.ok("OK", list);
@@ -76,14 +76,14 @@ public class UpstreamController {
 
     @GetMapping("/package/content/{packageId}")
     public ApiResponse<PackageContentResponse> content(@PathVariable String packageId) throws IOException {
-        return ApiResponse.ok("OK", downstreamService.tarContent(packageId));
+        return ApiResponse.ok("OK", uploadService.tarContent(packageId));
     }
 
     @GetMapping("/statistics")
     public ApiResponse<UpstreamStatisticsResponse> statistics() {
         long total = uploadPackageRepository.count();
         long uploaded = uploadPackageRepository.findAll().stream()
-                .filter(p -> p.getStatus() == UploadPackageStatus.IMPORTED)
+                .filter(p -> (p.getStatus() == UploadPackageStatus.IMPORTED) || (p.getStatus() == UploadPackageStatus.ARCHIVED))
                 .count();
 
         UpstreamStatisticsResponse stats = new UpstreamStatisticsResponse();
