@@ -62,7 +62,7 @@ services:
       - ./config/config.json:/opt/airgap/config/config.json
       - ./data/collection/in:/opt/airgap/data/collect/in
       - ./data/collection/out:/opt/airgap/data/collect/out
-      - ./upstream/data:/opt/airgap/data
+      - ./upstream/data:/opt/airgap/data/upstream
       - ./downstream/data/package-output:/opt/airgap/data/downstream/original-packages
 
     restart: always
