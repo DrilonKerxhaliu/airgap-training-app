@@ -60,8 +60,10 @@ services:
 
     volumes:
       - ./config/config.json:/opt/airgap/config/config.json
-      - ./data:/opt/airgap/data
-      - ./downstream/data/package-output:/opt/airgap/data/original-packages
+      - ./data/collection/in:/opt/airgap/data/collect/in
+      - ./data/collection/out:/opt/airgap/data/collect/out
+      - ./upstream/data:/opt/airgap/data
+      - ./downstream/data/package-output:/opt/airgap/data/downstream/original-packages
 
     restart: always
 
