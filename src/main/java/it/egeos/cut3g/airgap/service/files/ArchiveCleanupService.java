@@ -82,8 +82,8 @@ public class ArchiveCleanupService {
 
     private void deleteSinglePackage(UploadPackageEntity pkg, String username) {
         TransactionEntity tx =
-               transactionService.startTransaction(
-                        pkg.getId(),
+               transactionService.startUploadTransaction(
+                        pkg,
                         Direction.CLEANUP,
                        username
                 );
@@ -100,6 +100,13 @@ public class ArchiveCleanupService {
             } else {
                 log.warn("Archive file not found: {}", tarPath);
             }
+
+            pkg.setOriginalTarPath(null);
+            pkg.setArchivedTarPath(null);
+            pkg.setWorkDirPath(null);
+            pkg.setOuterDirPath(null);
+            pkg.setDataDirPath(null);
+            pkg.setManifestRelativePath(null);
 
             pkg.setStatus(UploadPackageStatus.DELETED);
             pkg.setNote("Deleted by archive cleanup job");

@@ -27,7 +27,7 @@ public class UploadPackageEntity {
     @Column(name = "sequence_index", nullable = false, unique = true)
     private long sequenceIndex;
 
-    @Column(name = "original_tar_path", nullable = false, length = 1024)
+    @Column(name = "original_tar_path", length = 1024)
     private String originalTarPath;
 
     @Column(name = "archived_tar_path", length = 1024)
@@ -68,7 +68,7 @@ public class UploadPackageEntity {
     private Instant archivedAt;
 
     @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(name = "created_at")
     private Instant createdAt;
 
     @UpdateTimestamp

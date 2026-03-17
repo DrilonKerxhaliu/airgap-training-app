@@ -1,8 +1,6 @@
 package it.egeos.cut3g.airgap.service.upstream;
 
-import it.egeos.cut3g.airgap.api.dto.PackageDto;
-import it.egeos.cut3g.airgap.api.dto.UploadPackageDto;
-import it.egeos.cut3g.airgap.api.dto.UpstreamStatusResponse;
+import it.egeos.cut3g.airgap.api.dto.*;
 import it.egeos.cut3g.airgap.exceptions.DownstreamIOException;
 import it.egeos.cut3g.airgap.exceptions.PackageFileNotFoundException;
 import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
@@ -18,6 +16,7 @@ import it.egeos.cut3g.airgap.persistence.repo.TransactionRepository;
 import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
 import it.egeos.cut3g.airgap.service.files.TransactionService;
 import it.egeos.cut3g.airgap.service.importing.IncomingPackageImportService;
+import it.egeos.cut3g.airgap.service.tar.TarListingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +55,9 @@ public class UploadService {
     @Autowired
     private UploadPackageRepository uploadPackageRepository;
 
+    @Autowired
+    private TarListingService tarListingService;
+
     public UploadPackageEntity uploadPackage(String packageName, String username) {
         Path uploadedRoot = Paths.get(uploadedDir).toAbsolutePath().normalize();
         Path tarPath = uploadedRoot.resolve(packageName).normalize();
@@ -88,12 +90,45 @@ public class UploadService {
             out.lastPackageId = pkg.getId();
             out.lastPackageState = pkg.getStatus().name();
             out.lastTransactionStart = pkg.getCreatedAt();
+            out.lastPackageName = pkg.getPackageName();
         });
         return out;
     }
 
-    public List<UploadPackageDto> listReadyForDownload() {
+    public List<UploadPackageDto> listOfUploadPackages() {
         List<UploadPackageEntity> pkgs = uploadPackageRepository.findAll();
         return pkgs.stream().map(UploadPackageDto::from).collect(Collectors.toList());
+    }
+
+    public PackageContentResponse tarContent(String packageId) {
+        UploadPackageEntity pkg = uploadPackageRepository.findById(packageId)
+                .orElseThrow(() -> new PackageNotFoundException(packageId));
+
+        Path tarPath = null;
+        if(pkg.getArchivedTarPath() != null) {
+            tarPath = Paths.get(pkg.getArchivedTarPath());
+            if (!Files.exists(tarPath)) {
+                throw new PackageFileNotFoundException(tarPath.toString());
+            }
+        }else {
+            tarPath = Paths.get(pkg.getOriginalTarPath());
+            if (!Files.exists(tarPath)) {
+                throw new PackageFileNotFoundException(tarPath.toString());
+            }
+        }
+
+        try {
+            List<FileContentDto> files = tarListingService.listFilesFromSubTars(tarPath);
+            PackageContentResponse resp = new PackageContentResponse();
+            resp.packageId = pkg.getId();
+            resp.packageName = pkg.getPackageName();
+            resp.files = files;
+
+            return resp;
+
+        } catch (IOException e) {
+            throw new DownstreamIOException("Unable to extract/read tar content: " + e.getMessage(), e);
+
+        }
     }
 }
