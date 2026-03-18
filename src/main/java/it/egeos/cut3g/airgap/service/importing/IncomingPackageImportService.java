@@ -66,7 +66,7 @@ public class IncomingPackageImportService {
     @Value("${airgap.unpack.work.dir}")
     private String unpackWorkDir;
 
-    @Value("${airgap.incoming.packages.archive.dir}")
+    @Value("${airgap.archive.packages.dir}")
     private String archiveDir;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

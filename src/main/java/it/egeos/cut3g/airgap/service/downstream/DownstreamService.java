@@ -243,6 +243,7 @@ public class DownstreamService {
         try {
             protocolService.transfer(pkg);
             pkg.setState(PackageState.SENT);
+            pkg.setExportedAt(Instant.now());
             transactionService.closeSuccess(tx.getId(), "SUCCESS: Package transferred");
         } catch (Exception ex) {
             pkg.setState(PackageState.FAILED);
