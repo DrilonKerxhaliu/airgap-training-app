@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,6 +57,22 @@ public class UpstreamController {
                         "status", pkg.getStatus().name(),
                         "fileCount", pkg.getFileCount() != null ? pkg.getFileCount() : 0,
                         "totalSizeBytes", pkg.getTotalSizeBytes() != null ? pkg.getTotalSizeBytes() : 0
+                )
+        );
+    }
+
+    @PostMapping(value = "/package/dragdrop", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadPackageFile(
+            @RequestPart("file") MultipartFile zipFile
+    ) throws IOException {
+
+        String fileName = uploadService.dragAndDrop(zipFile);
+
+        return ResponseEntity.ok(
+                java.util.Map.of(
+                        "message", "File uploaded successfully",
+                        "fileName", fileName,
+                        "path", "/opt/airgap/data/upstream/upload/" + fileName
                 )
         );
     }

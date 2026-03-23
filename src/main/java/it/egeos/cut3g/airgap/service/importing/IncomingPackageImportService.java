@@ -10,6 +10,7 @@ import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
 import it.egeos.cut3g.airgap.persistence.repo.UploadFileRepository;
 import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
 import it.egeos.cut3g.airgap.service.files.TransactionService;
+import it.egeos.cut3g.airgap.service.files.TransferProtocolService;
 import it.egeos.cut3g.airgap.service.manifest.ManifestFileItem;
 import it.egeos.cut3g.airgap.service.manifest.PackageManifest;
 import it.egeos.cut3g.airgap.service.upstream.UploadNewFileService;
@@ -61,12 +62,12 @@ public class IncomingPackageImportService {
     private UploadNewFileService uploadNewFileService;
 
     @Autowired
-    private EntityManager entityManager;
+    private TransferProtocolService transferProtocolService;
 
     @Value("${airgap.unpack.work.dir}")
     private String unpackWorkDir;
 
-    @Value("${airgap.incoming.packages.archive.dir}")
+    @Value("${airgap.archive.packages.dir}")
     private String archiveDir;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -156,6 +157,18 @@ public class IncomingPackageImportService {
             uploadPkg = uploadNewPackageService.saveNewPackage(uploadPkg);
 
             ImportDeliveryResult result = importDeliveryOrchestrator.unpackAndDeliver(normalizedTar, workDir);
+
+            try {
+                Path dataDir = result.getDataDir().toAbsolutePath().normalize();
+
+                transferProtocolService.exportUnzipped(dataDir);
+
+                log.info("Files exported to upstream config path successfully");
+            } catch (Exception e) {
+                log.error("Failed exporting files to upstream path", e);
+                throw new RuntimeException("Upstream export failed", e);
+            }
+
             PackageManifest manifest = result.getManifest();
 
             uploadPkg.setOuterDirPath(result.getOuterDir().toString());

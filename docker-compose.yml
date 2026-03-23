@@ -52,18 +52,17 @@ services:
     ports:
       - "8081:8081"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/airgap_dev_db
-      SPRING_DATASOURCE_USERNAME: airgap_dev_user
-      SPRING_DATASOURCE_PASSWORD: airgap_dev_pass
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/airgap_db
+      SPRING_DATASOURCE_USERNAME: airgap_user
+      SPRING_DATASOURCE_PASSWORD: airgap_pass
       SPRING_PROFILES_ACTIVE: docker
       AIRGAP_AES_KEY: ${AIRGAP_AES_KEY}
 
     volumes:
       - ./config/config.json:/opt/airgap/config/config.json
       - ./data/collection/in:/opt/airgap/data/collect/in
-      - ./data/collection/out:/opt/airgap/data/collect/out
       - ./upstream/data:/opt/airgap/data/upstream
-      - ./downstream/data/package-output:/opt/airgap/data/downstream/original-packages
+      - ./downstream/data:/opt/airgap/data/downstream
 
     restart: always
 

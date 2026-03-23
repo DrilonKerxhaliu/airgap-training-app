@@ -241,8 +241,10 @@ public class DownstreamService {
     public void transferAsync(PackageEntity pkg, String username) {
         TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM, username);
         try {
-            protocolService.transfer(pkg);
+            Path packagePath = Path.of(pkg.getPackagePath()).toAbsolutePath().normalize();
+            protocolService.sendPackage(packagePath);
             pkg.setState(PackageState.SENT);
+            pkg.setExportedAt(Instant.now());
             transactionService.closeSuccess(tx.getId(), "SUCCESS: Package transferred");
         } catch (Exception ex) {
             pkg.setState(PackageState.FAILED);

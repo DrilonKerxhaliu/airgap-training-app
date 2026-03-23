@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -73,6 +74,31 @@ public class UploadService {
         log.info("UPLOAD REQUEST packageName={} path={}", packageName, tarPath);
 
         return incomingPackageImportService.importUploadedPackage(tarPath, username);
+    }
+
+    public String dragAndDrop(MultipartFile zipFile) throws IOException {
+
+        Path uploadedRoot = Paths.get(uploadedDir).toAbsolutePath().normalize();
+        Files.createDirectories(uploadedRoot);
+
+        String originalFilename = zipFile.getOriginalFilename();
+
+        if (originalFilename == null || !originalFilename.endsWith(".tar")) {
+            throw new IllegalArgumentException("Only .tar files are allowed");
+        }
+
+        Path targetPath = uploadedRoot.resolve(originalFilename).normalize();
+
+        if (!targetPath.startsWith(uploadedRoot)) {
+            throw new SecurityException("Invalid path");
+        }
+
+        log.info("UPLOAD (MULTIPART) saving file={} to={}", originalFilename, targetPath);
+
+        // SAVE FILE TO DISK
+        zipFile.transferTo(targetPath);
+
+        return originalFilename;
     }
 
     public UpstreamStatusResponse status() {
