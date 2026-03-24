@@ -1,21 +1,6 @@
 version: "3.9"
 
 services:
-  airgapmanager-dev:
-    image: node:20-alpine      # Use Node image directly, no Dockerfile
-    working_dir: /app
-    volumes:
-      - ./frontend/airgap/airgapmanager:/app   # Mount project source code
-      - /app/node_modules                      # Keep node_modules inside container
-    ports:
-      - "5173:5173"           # host:container (Vite default port is 5173)
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
-    container_name: airgapmanager-dev
-    networks:
-      - airgap-network
-    depends_on:
-      - airgap-service
-
   postgres:
     image: postgres:15
     container_name: airgap-postgres
@@ -23,11 +8,9 @@ services:
       POSTGRES_DB: airgap_db
       POSTGRES_USER_FILE: /run/secrets/db_user
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-
     secrets:
       - db_user
       - db_password
-
     ports:
       - "5433:5432"
     volumes:
@@ -57,16 +40,13 @@ services:
       SPRING_DATASOURCE_PASSWORD: airgap_pass
       SPRING_PROFILES_ACTIVE: docker
       AIRGAP_AES_KEY: ${AIRGAP_AES_KEY}
-
     volumes:
       - ./config/config.json:/opt/airgap/config/config.json
       - ./downstream/data/collection/in:/opt/airgap/downstream/data/collection/in
       - ./downstream/data/package_output:/opt/airgap/downstream/data/package_output
       - ./upstream/data/package_input:/opt/airgap/upstream/data/package_input
       - ./upstream/data/upload_output:/opt/airgap/upstream/data/upload_output
-
     restart: always
-
     networks:
       - airgap-network
 
