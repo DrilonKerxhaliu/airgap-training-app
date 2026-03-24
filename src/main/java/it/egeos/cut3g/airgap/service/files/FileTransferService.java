@@ -45,6 +45,20 @@ public class FileTransferService {
         log.info("COPY DIRECTORY {} -> {}", normalizedSource, destRoot);
 
         Files.walkFileTree(normalizedSource, new SimpleFileVisitor<>() {
+
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Path target = destRoot.resolve(normalizedSource.relativize(dir));
+                Files.createDirectories(target);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Path target = destRoot.resolve(normalizedSource.relativize(file));
+                Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
+                return FileVisitResult.CONTINUE;
+            }
         });
     }
 

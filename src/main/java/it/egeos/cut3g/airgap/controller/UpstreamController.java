@@ -63,17 +63,19 @@ public class UpstreamController {
 
     @PostMapping(value = "/package/dragdrop", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadPackageFile(
-            @RequestPart("file") MultipartFile zipFile
-    ) throws IOException {
+            @RequestPart("file") MultipartFile zipFile,
+            @RequestParam(value = "username", required = false) String username ) throws IOException {
 
-        String fileName = uploadService.dragAndDrop(zipFile);
+        UploadPackageEntity pkg = uploadService.dragAndDrop(zipFile, username);
 
         return ResponseEntity.ok(
                 java.util.Map.of(
-                        "message", "File uploaded successfully",
-                        "fileName", fileName,
-                        "path", "/opt/airgap/data/upstream/upload/" + fileName
-                )
+                        "uploadPackageId", pkg.getId(),
+                        "packageName", pkg.getPackageName(),
+                        "sequenceIndex", pkg.getSequenceIndex(),
+                        "status", pkg.getStatus().name(),
+                        "fileCount", pkg.getFileCount() != null ? pkg.getFileCount() :0,
+                        "totalSizeBytes", pkg.getTotalSizeBytes() != null ? pkg.getTotalSizeBytes() :0 )
         );
     }
 

@@ -20,7 +20,7 @@ services:
     image: postgres:15
     container_name: airgap-postgres
     environment:
-      POSTGRES_DB: airgap_dev_db
+      POSTGRES_DB: airgap_db
       POSTGRES_USER_FILE: /run/secrets/db_user
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password
 
@@ -34,7 +34,7 @@ services:
       - airgap_pgdata:/var/lib/postgresql/data
       - ./backend/db/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $(cat /run/secrets/db_user) -d airgap_dev_db"]
+      test: ["CMD-SHELL", "pg_isready -U $(cat /run/secrets/db_user) -d airgap_db"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -60,9 +60,10 @@ services:
 
     volumes:
       - ./config/config.json:/opt/airgap/config/config.json
-      - ./data/collection/in:/opt/airgap/data/collect/in
-      - ./upstream/data:/opt/airgap/data/upstream
-      - ./downstream/data:/opt/airgap/data/downstream
+      - ./downstream/data/collection/in:/opt/airgap/downstream/data/collection/in
+      - ./downstream/data/package_output:/opt/airgap/downstream/data/package_output
+      - ./upstream/data/package_input:/opt/airgap/upstream/data/package_input
+      - ./upstream/data/upload_output:/opt/airgap/upstream/data/upload_output
 
     restart: always
 

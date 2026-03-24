@@ -2,6 +2,7 @@ package it.egeos.cut3g.airgap.service.files;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,9 @@ public class TransferProtocolService {
    @Autowired
    private FileTransferService fileTransferService;
 
+   @Autowired
+    private FtpTransferService ftpTransferService;
+
     @PostConstruct
     public void loadConfig() throws Exception {
         try (Reader reader = Files.newBufferedReader(Path.of(configPath))) {
@@ -30,12 +34,11 @@ public class TransferProtocolService {
         }
     }
 
-    private Path getDownstreamPath() {
+    private URI getDownstreamUri() {
         String uri = config.getAsJsonObject("downstream")
                 .get("download_package_path")
                 .getAsString();
-
-        return Path.of(URI.create(uri)).toAbsolutePath().normalize();
+        return URI.create(uri);
     }
 
     private Path getUpstreamPath() {
@@ -46,11 +49,24 @@ public class TransferProtocolService {
         return Path.of(URI.create(uri)).toAbsolutePath().normalize();
     }
 
-    public void sendPackage(Path packageFile) throws Exception {
+    public void sendPackage(Path packageFile, PackageEntity pkg) throws Exception {
 
-        Path destination = getDownstreamPath();
+        URI uri = getDownstreamUri();
 
-        fileTransferService.copyFile(packageFile, destination);
+        switch (uri.getScheme().toLowerCase()) {
+
+            case "file":
+                Path destination = Path.of(uri).toAbsolutePath().normalize();
+                fileTransferService.copyFile(packageFile, destination);
+                break;
+
+            case "ftp":
+                ftpTransferService.transfer(pkg, uri);
+                break;
+
+            default:
+                throw new IllegalArgumentException("Unsupported protocol: " + uri.getScheme());
+        }
     }
 
     public void exportUnzipped(Path unzipDir) throws Exception {

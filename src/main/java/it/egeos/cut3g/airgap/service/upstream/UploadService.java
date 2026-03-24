@@ -76,30 +76,25 @@ public class UploadService {
         return incomingPackageImportService.importUploadedPackage(tarPath, username);
     }
 
-    public String dragAndDrop(MultipartFile zipFile) throws IOException {
-
+    public UploadPackageEntity dragAndDrop(MultipartFile zipFile, String username) throws IOException {
         Path uploadedRoot = Paths.get(uploadedDir).toAbsolutePath().normalize();
         Files.createDirectories(uploadedRoot);
-
         String originalFilename = zipFile.getOriginalFilename();
 
-        if (originalFilename == null || !originalFilename.endsWith(".tar")) {
-            throw new IllegalArgumentException("Only .tar files are allowed");
-        }
+        if (originalFilename == null || !originalFilename.endsWith(".tar"))
+
+        { throw new IllegalArgumentException("Only .tar files are allowed"); }
 
         Path targetPath = uploadedRoot.resolve(originalFilename).normalize();
 
-        if (!targetPath.startsWith(uploadedRoot)) {
-            throw new SecurityException("Invalid path");
-        }
+        if (!targetPath.startsWith(uploadedRoot))
+        { throw new SecurityException("Invalid path"); }
 
         log.info("UPLOAD (MULTIPART) saving file={} to={}", originalFilename, targetPath);
-
-        // SAVE FILE TO DISK
         zipFile.transferTo(targetPath);
+        log.info("UPLOAD (MULTIPART) saved file={}, starting import", originalFilename);
 
-        return originalFilename;
-    }
+        return incomingPackageImportService.importUploadedPackage(targetPath, username); }
 
     public UpstreamStatusResponse status() {
         UpstreamStatusResponse out = new UpstreamStatusResponse();
