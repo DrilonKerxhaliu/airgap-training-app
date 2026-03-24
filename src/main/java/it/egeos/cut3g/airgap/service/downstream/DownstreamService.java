@@ -2,7 +2,6 @@ package it.egeos.cut3g.airgap.service.downstream;
 
 import it.egeos.cut3g.airgap.api.dto.*;
 import it.egeos.cut3g.airgap.exceptions.DownstreamIOException;
-import it.egeos.cut3g.airgap.exceptions.NoNewFilesToPackageException;
 import it.egeos.cut3g.airgap.exceptions.PackageFileNotFoundException;
 import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
@@ -242,7 +241,7 @@ public class DownstreamService {
         TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM, username);
         try {
             Path packagePath = Path.of(pkg.getPackagePath()).toAbsolutePath().normalize();
-            protocolService.sendPackage(packagePath);
+            protocolService.sendPackage(packagePath, pkg);
             pkg.setState(PackageState.SENT);
             pkg.setExportedAt(Instant.now());
             transactionService.closeSuccess(tx.getId(), "SUCCESS: Package transferred");
