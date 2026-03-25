@@ -11,14 +11,15 @@ FROM eclipse-temurin:17-jre
 
 RUN groupadd -g 1001 airgap && \
     useradd -m -u 1001 -g airgap -s /bin/bash airgap
+
 WORKDIR /opt/airgap
 
 COPY --from=build /build/target/*.jar app.jar
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-RUN mkdir -p /opt/airgap/data && \
-    chown -R airgap:airgap /opt/airgap
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && \
+    mkdir -p /opt/airgap/data
 
-USER airgap
 EXPOSE 8081
 
-ENTRYPOINT ["java","-jar","app.jar"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
