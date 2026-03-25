@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: airgap-postgres
+    environment:
+      POSTGRES_DB: airgap_dev_db
+      POSTGRES_USER: airgap_dev_user
+      POSTGRES_PASSWORD: airgap_dev_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - airgap_pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airgap_dev_user -d airgap_dev_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  airgap-service:
+    build: .
+    container_name: airgap-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/airgap_dev_db
+      SPRING_DATASOURCE_USERNAME: airgap_dev_user
+      SPRING_DATASOURCE_PASSWORD: airgap_dev_pass
+      SPRING_PROFILES_ACTIVE: docker
+    volumes:
+      - airgap_data:/opt/airgap/data
+    restart: always
+
+volumes:
+  airgap_pgdata:
+  airgap_data:
