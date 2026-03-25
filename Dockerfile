@@ -15,6 +15,7 @@ RUN groupadd -g 1001 airgap && \
 WORKDIR /opt/airgap
 
 COPY --from=build /build/target/*.jar app.jar
+
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh && \
