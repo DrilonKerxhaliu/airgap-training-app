@@ -16,11 +16,15 @@ WORKDIR /opt/airgap
 
 COPY --from=build /build/target/*.jar app.jar
 
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# Create runtime dirs (IMPORTANT)
+RUN mkdir -p /opt/airgap/runtime && \
+    mkdir -p /opt/airgap/downstream && \
+    mkdir -p /opt/airgap/upstream && \
+    chown -R airgap:airgap /opt/airgap
 
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh && \
-    mkdir -p /opt/airgap/data
+# Run as non-root
+USER airgap
 
 EXPOSE 8081
 
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+ENTRYPOINT ["java","-jar","/opt/airgap/app.jar"]
