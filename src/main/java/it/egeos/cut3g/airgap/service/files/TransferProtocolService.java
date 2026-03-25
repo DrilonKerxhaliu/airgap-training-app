@@ -1,5 +1,6 @@
 package it.egeos.cut3g.airgap.service.files;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
@@ -21,10 +22,10 @@ public class TransferProtocolService {
 
     private JsonObject config;
 
-   @Autowired
-   private FileTransferService fileTransferService;
+    @Autowired
+    private FileTransferService fileTransferService;
 
-   @Autowired
+    @Autowired
     private FtpTransferService ftpTransferService;
 
     @PostConstruct
@@ -32,26 +33,68 @@ public class TransferProtocolService {
         try (Reader reader = Files.newBufferedReader(Path.of(configPath))) {
             config = JsonParser.parseReader(reader).getAsJsonObject();
         }
+
+        getServer();
+        getDownstreamConfig();
+        getUpstreamConfig();
+    }
+
+    private JsonObject getServer() {
+        return getRequiredObject(config, "server");
+    }
+
+    private JsonObject getDownstreamConfig() {
+        return getRequiredObject(getServer(), "downstream");
+    }
+
+    private JsonObject getUpstreamConfig() {
+        return getRequiredObject(getServer(), "upstream");
+    }
+
+    private JsonObject getRequiredObject(JsonObject parent, String key) {
+        JsonElement el = parent.get(key);
+
+        if (el == null || !el.isJsonObject()) {
+            throw new IllegalStateException("Missing or invalid object in config.json: " + key);
+        }
+
+        return el.getAsJsonObject();
+    }
+
+    private String getRequiredString(JsonObject parent, String key) {
+        JsonElement el = parent.get(key);
+
+        if (el == null || el.isJsonNull()) {
+            throw new IllegalStateException("Missing value in config.json: " + key);
+        }
+
+        return el.getAsString();
     }
 
     private URI getDownstreamUri() {
-        String uri = config.getAsJsonObject("downstream")
-                .get("download_package_path")
-                .getAsString();
+        String uri = getRequiredString(getDownstreamConfig(), "download_package_path");
         return URI.create(uri);
     }
 
     private Path getUpstreamPath() {
-        String uri = config.getAsJsonObject("upstream")
-                .get("upload_package_path")
-                .getAsString();
+        String uri = getRequiredString(getUpstreamConfig(), "upload_package_path");
 
-        return Path.of(URI.create(uri)).toAbsolutePath().normalize();
+        URI parsed = URI.create(uri);
+
+        if (!"file".equalsIgnoreCase(parsed.getScheme())) {
+            throw new IllegalArgumentException("Upstream must use file:// protocol");
+        }
+
+        return Path.of(parsed).toAbsolutePath().normalize();
     }
 
     public void sendPackage(Path packageFile, PackageEntity pkg) throws Exception {
 
         URI uri = getDownstreamUri();
+
+        if (uri.getScheme() == null) {
+            throw new IllegalArgumentException("Invalid downstream URI (missing scheme)");
+        }
 
         switch (uri.getScheme().toLowerCase()) {
 
@@ -72,6 +115,8 @@ public class TransferProtocolService {
     public void exportUnzipped(Path unzipDir) throws Exception {
 
         Path destination = getUpstreamPath();
+
+        Files.createDirectories(destination);
 
         fileTransferService.copyDirectory(unzipDir, destination);
     }
