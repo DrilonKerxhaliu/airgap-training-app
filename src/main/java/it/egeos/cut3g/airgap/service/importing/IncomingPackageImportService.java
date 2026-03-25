@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
 import java.util.Comparator;
@@ -263,8 +264,26 @@ public class IncomingPackageImportService {
         Files.createDirectories(archiveRoot);
 
         Path archivedTar = archiveRoot.resolve(originalTar.getFileName()).normalize();
-        Files.move(originalTar, archivedTar, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        try {
+            Files.move(originalTar, archivedTar, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            log.info("Atomic move succeeded {} -> {}", originalTar, archivedTar);
 
+        } catch (AtomicMoveNotSupportedException ex) {
+
+            log.warn("Atomic move failed (expected in Docker cross-FS), fallback to copy+delete: {}",
+                    ex.getMessage());
+            Files.copy(originalTar, archivedTar, StandardCopyOption.REPLACE_EXISTING);
+            long sourceSize = Files.size(originalTar);
+            long targetSize = Files.size(archivedTar);
+
+            if (sourceSize != targetSize) {
+                throw new IOException("Archive copy failed: size mismatch");
+            }
+
+            Files.delete(originalTar);
+
+            log.info("Copy+delete move succeeded {} -> {}", originalTar, archivedTar);
+        }
         uploadPkg.setArchivedTarPath(archivedTar.toString());
         uploadPkg.setArchivedAt(Instant.now());
         uploadPkg.setStatus(UploadPackageStatus.ARCHIVED);
