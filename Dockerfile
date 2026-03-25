@@ -9,7 +9,8 @@ RUN mvn -B -q package -DskipTests
 
 FROM eclipse-temurin:17-jre
 
-RUN useradd -ms /bin/bash airgap
+RUN groupadd -g 1001 airgap && \
+    useradd -m -u 1001 -g airgap -s /bin/bash airgap
 WORKDIR /opt/airgap
 
 COPY --from=build /build/target/*.jar app.jar
