@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
 
 @Service
 public class FileTransferService {
@@ -30,36 +29,6 @@ public class FileTransferService {
         Files.copy(normalizedSource, target, StandardCopyOption.REPLACE_EXISTING);
 
         return target;
-    }
-
-    public void copyDirectory(Path sourceDir, Path destinationDir) throws IOException {
-
-        Path normalizedSource = sourceDir.toAbsolutePath().normalize();
-
-        if (!Files.exists(normalizedSource)) {
-            throw new IllegalArgumentException("Source directory not found: " + normalizedSource);
-        }
-
-        Path destRoot = ensureDirectory(destinationDir);
-
-        log.info("COPY DIRECTORY {} -> {}", normalizedSource, destRoot);
-
-        Files.walkFileTree(normalizedSource, new SimpleFileVisitor<>() {
-
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Path target = destRoot.resolve(normalizedSource.relativize(dir));
-                Files.createDirectories(target);
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Path target = destRoot.resolve(normalizedSource.relativize(file));
-                Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
-                return FileVisitResult.CONTINUE;
-            }
-        });
     }
 
 

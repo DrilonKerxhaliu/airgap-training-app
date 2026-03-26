@@ -67,6 +67,10 @@ public class IncomingPackageImportService {
     @Value("${airgap.unpack.work.dir}")
     private String unpackWorkDir;
 
+
+    @Value("${airgap.collect.out}")
+    private String outDir;
+
     @Value("${airgap.archive.packages.dir}")
     private String archiveDir;
 
@@ -159,9 +163,7 @@ public class IncomingPackageImportService {
             ImportDeliveryResult result = importDeliveryOrchestrator.unpackAndDeliver(normalizedTar, workDir);
 
             try {
-                Path dataDir = result.getDataDir().toAbsolutePath().normalize();
-
-                transferProtocolService.exportUnzipped(dataDir);
+                transferProtocolService.exportCollectionOutMerge(outDir);
 
                 log.info("Files exported to upstream config path successfully");
             } catch (Exception e) {

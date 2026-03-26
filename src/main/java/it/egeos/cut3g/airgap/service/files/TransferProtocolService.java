@@ -4,18 +4,23 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
+import java.io.IOException;
 import java.io.Reader;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 
 @Service
 public class TransferProtocolService {
+
+    public static final Logger log = LoggerFactory.getLogger(TransferProtocolService.class);
 
     @Value("${airgap.config.path}")
     private String configPath;
@@ -112,12 +117,38 @@ public class TransferProtocolService {
         }
     }
 
-    public void exportUnzipped(Path unzipDir) throws Exception {
+    public void exportCollectionOutMerge(String outDir) throws IOException {
 
-        Path destination = getUpstreamPath();
+        Path sourceRoot = Paths.get(outDir).toAbsolutePath().normalize();
 
-        Files.createDirectories(destination);
+        Path destinationRoot = getUpstreamPath();
 
-        fileTransferService.copyDirectory(unzipDir, destination);
+        Files.createDirectories(destinationRoot);
+
+        log.info("MERGE EXPORT {} -> {}", sourceRoot, destinationRoot);
+
+        Files.walkFileTree(sourceRoot, new SimpleFileVisitor<>() {
+
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+
+                Path targetDir = destinationRoot.resolve(sourceRoot.relativize(dir));
+                Files.createDirectories(targetDir);
+
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+
+                Path targetFile = destinationRoot.resolve(sourceRoot.relativize(file));
+
+                Files.copy(file, targetFile, StandardCopyOption.REPLACE_EXISTING);
+
+                log.info("MERGE COPY {} -> {}", file, targetFile);
+
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }
