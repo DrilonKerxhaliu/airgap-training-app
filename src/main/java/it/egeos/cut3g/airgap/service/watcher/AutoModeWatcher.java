@@ -47,7 +47,12 @@ public class AutoModeWatcher {
                 Path configFile = Paths.get(configPath);
                 Path dir = configFile.getParent();
 
-                dir.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
+                dir.register(
+                        watchService,
+                        StandardWatchEventKinds.ENTRY_MODIFY,
+                        StandardWatchEventKinds.ENTRY_CREATE,
+                        StandardWatchEventKinds.ENTRY_DELETE);
+
                 log.info("Watching config.json for changes: {}", configPath);
 
                 while (!Thread.currentThread().isInterrupted()) {
@@ -55,6 +60,8 @@ public class AutoModeWatcher {
 
                     for (WatchEvent<?> event : key.pollEvents()) {
                         Path changed = (Path) event.context();
+
+                        log.info("EVENT TYPE: {} FILE: {}", event.kind(), changed);
 
                         if (changed != null && changed.equals(configFile.getFileName())) {
                             long now = System.currentTimeMillis();
