@@ -41,7 +41,7 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       AIRGAP_AES_KEY: ${AIRGAP_AES_KEY}
     volumes:
-      - ./config/config.json:/opt/airgap/config/config.json
+      - ./config:/opt/airgap/config/config.json
       - ./downstream/data/collection/in:/opt/airgap/downstream/data/collection/in
       - ./downstream/data/package_output:/opt/airgap/downstream/data/package_output
       - ./upstream/data/package_input:/opt/airgap/upstream/data/package_input
