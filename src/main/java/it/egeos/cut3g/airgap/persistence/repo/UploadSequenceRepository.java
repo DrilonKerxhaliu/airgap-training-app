@@ -17,4 +17,7 @@ public interface UploadSequenceRepository
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from UploadSequenceEntity s where s.id = :id")
     Optional<UploadSequenceEntity> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("SELECT s.lastSequenceIndex FROM UploadSequenceEntity s WHERE s.id = 1")
+    long findLastSequence();
 }

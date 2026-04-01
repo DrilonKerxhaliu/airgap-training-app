@@ -1,6 +1,8 @@
 package it.egeos.cut3g.airgap.quartz;
 
+import it.egeos.cut3g.airgap.service.util.RuntimeConfigService;
 import org.quartz.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,6 +23,9 @@ public class QuartzConfig {
     @Value("${airgap.cleanup.cron}")
     private String cleanupCron;
 
+    @Autowired
+    private RuntimeConfigService runtimeConfigService;
+
     /**
     * AUTO (TIME-BASED) PACKAGING
     **/
@@ -40,7 +45,7 @@ public class QuartzConfig {
                 .withIdentity("autoPackagingTrigger")
                 .withSchedule(
                         simpleSchedule()
-                                .withIntervalInHours(autoHours)
+                                .withIntervalInHours(runtimeConfigService.getAutoPackagingHours())
                                 .repeatForever()
                 )
                 .build();
@@ -65,7 +70,7 @@ public class QuartzConfig {
                 .withIdentity("sizeBasedPackagingTrigger")
                 .withSchedule(
                         simpleSchedule()
-                                .withIntervalInMinutes(sizeIntervalMin)
+                                .withIntervalInMinutes(runtimeConfigService.getSizeCheckIntervalMin())
                                 .repeatForever()
                 )
                 .build();
