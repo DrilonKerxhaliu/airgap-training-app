@@ -52,24 +52,32 @@ public class SecurityConfig {
         return entryPoint;
     }
 
+    // ✅ SUCCESS HANDLER (IMPORTANT)
+    @Bean
+    public SavedRequestAwareAuthenticationSuccessHandler successHandler() {
+        SavedRequestAwareAuthenticationSuccessHandler handler =
+                new SavedRequestAwareAuthenticationSuccessHandler();
+        handler.setAlwaysUseDefaultTargetUrl(false);
+        handler.setDefaultTargetUrl("/airgap"); // fallback
+
+        return handler;
+    }
+
+    // ✅ CAS FILTER
     @Bean
     public CasAuthenticationFilter casAuthenticationFilter() throws Exception {
         CasAuthenticationFilter filter = new CasAuthenticationFilter();
         filter.setAuthenticationManager(authenticationManager());
         filter.setFilterProcessesUrl("/login/cas");
         filter.setServiceProperties(serviceProperties);
+        filter.setAuthenticationSuccessHandler(successHandler());
 
-        SavedRequestAwareAuthenticationSuccessHandler successHandler =
-                new SavedRequestAwareAuthenticationSuccessHandler();
-
-        successHandler.setDefaultTargetUrl("/airgap"); // fallback nëse s’ka saved request
-        filter.setAuthenticationSuccessHandler(successHandler);
         return filter;
     }
 
     @Bean
     public LogoutFilter logoutFilter() {
-        String logoutRedirect = casLogoutUrl + "?service=http://localhost:8081/airgap";
+        String logoutRedirect = casLogoutUrl + "?service=http://172.30.150.98:8081/airgap";
         LogoutFilter logoutFilter = new LogoutFilter(logoutRedirect, new SecurityContextLogoutHandler());
         logoutFilter.setFilterProcessesUrl("/logout");
         return logoutFilter;
