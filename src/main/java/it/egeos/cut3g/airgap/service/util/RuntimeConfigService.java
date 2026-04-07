@@ -14,7 +14,7 @@ import java.nio.file.Paths;
 @Service
 public class RuntimeConfigService {
 
-    @Value("${airgap.downstream.config-path}")
+    @Value("${airgap.config.path}")
     private String configPath;
 
     private JsonObject cachedConfig;
