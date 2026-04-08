@@ -34,4 +34,17 @@ public class UiConfigSseService {
             }
         }
     }
+
+    public void sendInitial(SseEmitter emitter, Map<String, Object> data) {
+        try {
+            emitter.send(SseEmitter.event()
+                    .name("ui-config")
+                    .data(data));
+        } catch (Exception e) {
+            emitters.remove(emitter);
+            try {
+                emitter.completeWithError(e);
+            } catch (Exception ignored) {}
+        }
+    }
 }

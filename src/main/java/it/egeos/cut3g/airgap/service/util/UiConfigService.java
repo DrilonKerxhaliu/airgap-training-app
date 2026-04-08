@@ -129,4 +129,31 @@ public class UiConfigService {
 
         return changes;
     }
+
+    public synchronized Map<String, Object> getCurrentUiConfig() throws IOException {
+        JsonObject base = currentConfig != null ? currentConfig : load();
+        JsonObject ui = base.getAsJsonObject("ui");
+
+        Map<String, Object> result = new HashMap<>();
+        if (ui == null) return result;
+
+        for (String key : ui.keySet()) {
+            JsonElement val = ui.get(key);
+            if (val == null || val.isJsonNull()) continue;
+
+            if (val.isJsonPrimitive()) {
+                if (val.getAsJsonPrimitive().isBoolean()) {
+                    result.put(key, val.getAsBoolean());
+                } else if (val.getAsJsonPrimitive().isNumber()) {
+                    result.put(key, val.getAsNumber());
+                } else if (val.getAsJsonPrimitive().isString()) {
+                    result.put(key, val.getAsString());
+                }
+            } else {
+                result.put(key, val.toString());
+            }
+        }
+
+        return result;
+    }
 }

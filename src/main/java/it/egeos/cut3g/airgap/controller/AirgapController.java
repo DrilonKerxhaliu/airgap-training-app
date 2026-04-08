@@ -44,5 +44,9 @@ public class AirgapController {
     }
 
     @GetMapping(value = "stream/ui-config", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamUiConfig() { return uiConfigSseService.subscribe(); }
+    public SseEmitter streamUiConfig() throws IOException {
+        SseEmitter emitter = uiConfigSseService.subscribe();
+        uiConfigSseService.sendInitial(emitter, configServiceUi.getCurrentUiConfig());
+        return emitter;
+    }
 }
