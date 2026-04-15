@@ -2,6 +2,7 @@ package it.egeos.cut3g.airgap.controller;
 
 import it.egeos.cut3g.airgap.api.ApiResponse;
 import it.egeos.cut3g.airgap.api.dto.PackageStateStatsDto;
+import it.egeos.cut3g.airgap.api.dto.TimeBucketDto;
 import it.egeos.cut3g.airgap.api.dto.TransactionStatsDto;
 import it.egeos.cut3g.airgap.service.files.ExcelExportService;
 import it.egeos.cut3g.airgap.service.files.ExportService;
@@ -9,10 +10,9 @@ import it.egeos.cut3g.airgap.service.packaging.StatisticsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 
 @RestController
@@ -118,6 +118,43 @@ public class StatisticsController {
                         "attachment; filename=transaction_stats.xlsx"
                 )
                 .body(xls);
+    }
+
+    @GetMapping("/{direction}/states")
+    public ApiResponse<List<PackageStateStatsDto>> stateDistribution(
+            @PathVariable String direction,
+            @RequestParam Instant from,
+            @RequestParam Instant to
+    ) {
+        return ApiResponse.ok(
+                "OK",
+                statisticsService.getStateDistribution(direction, from, to)
+        );
+    }
+
+    @GetMapping("/{direction}/critical")
+    public ApiResponse<List<PackageStateStatsDto>> criticalStates(
+            @PathVariable String direction,
+            @RequestParam Instant from,
+            @RequestParam Instant to
+    ) {
+        return ApiResponse.ok(
+                "OK",
+                statisticsService.getCriticalStates(direction, from, to)
+        );
+    }
+
+    @GetMapping("/{direction}/heatmap")
+    public ApiResponse<List<TimeBucketDto>> heatmap(
+            @PathVariable String direction,
+            @RequestParam String state,
+            @RequestParam Instant from,
+            @RequestParam Instant to
+    ) {
+        return ApiResponse.ok(
+                "OK",
+                statisticsService.getHeatmap(direction, state, from, to)
+        );
     }
 }
 
