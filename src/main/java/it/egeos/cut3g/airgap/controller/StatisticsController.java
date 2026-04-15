@@ -2,6 +2,7 @@ package it.egeos.cut3g.airgap.controller;
 
 import it.egeos.cut3g.airgap.api.ApiResponse;
 import it.egeos.cut3g.airgap.api.dto.PackageStateStatsDto;
+import it.egeos.cut3g.airgap.api.dto.StatsPackageDto;
 import it.egeos.cut3g.airgap.api.dto.TimeBucketDto;
 import it.egeos.cut3g.airgap.api.dto.TransactionStatsDto;
 import it.egeos.cut3g.airgap.service.files.ExcelExportService;
@@ -29,7 +30,7 @@ public class StatisticsController {
     private ExcelExportService excelExportService;
 
     @GetMapping("/packages")
-    public ApiResponse<List<PackageStateStatsDto>> packageStats() {
+    public ApiResponse<List<StatsPackageDto>> packageStats() {
         return ApiResponse.ok(
                 "OK",
                 statisticsService.packageStateStats()

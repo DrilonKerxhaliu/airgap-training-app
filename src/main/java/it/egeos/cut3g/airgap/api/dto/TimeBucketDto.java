@@ -1,32 +1,18 @@
 package it.egeos.cut3g.airgap.api.dto;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 public class TimeBucketDto {
 
-    private LocalDate date;
+    private Instant time;
     private long count;
 
-    public TimeBucketDto() {}
-
-    public TimeBucketDto(LocalDate date, long count) {
-        this.date = date;
+    public TimeBucketDto(Instant time, long count) {
+        this.time = time;
         this.count = count;
     }
 
-    public LocalDate getDate() {
-        return date;
-    }
-
-    public void setDate(LocalDate date) {
-        this.date = date;
-    }
-
-    public long getCount() {
-        return count;
-    }
-
-    public void setCount(long count) {
-        this.count = count;
-    }
+    public Instant getTime() { return time; }
+    public long getCount() { return count; }
 }

@@ -1,6 +1,7 @@
 package it.egeos.cut3g.airgap.service.packaging;
 
 import it.egeos.cut3g.airgap.api.dto.PackageStateStatsDto;
+import it.egeos.cut3g.airgap.api.dto.StatsPackageDto;
 import it.egeos.cut3g.airgap.api.dto.TimeBucketDto;
 import it.egeos.cut3g.airgap.api.dto.TransactionStatsDto;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
@@ -25,7 +26,7 @@ public class StatisticsService {
     @Autowired
     private TransactionRepository transactionRepository;
 
-    public List<PackageStateStatsDto> packageStateStats() {
+    public List<StatsPackageDto> packageStateStats() {
         return packageRepository.countPackagesByState();
     }
 
@@ -75,9 +76,6 @@ public class StatisticsService {
                 .collect(Collectors.toList());
     }
 
-    // =============================
-    // HEATMAP
-    // =============================
     public List<TimeBucketDto> getHeatmap(String direction, String state, Instant from, Instant to) {
 
         List<Object[]> raw;
@@ -91,10 +89,18 @@ public class StatisticsService {
         }
 
         return raw.stream()
-                .map(r -> new TimeBucketDto(
-                        ((java.sql.Date) r[0]).toLocalDate(),
-                        ((Number) r[1]).longValue()
-                ))
+                .map(r -> {
+                    java.sql.Date date = (java.sql.Date) r[0];
+
+                    Instant instant = date.toLocalDate()
+                            .atStartOfDay(java.time.ZoneOffset.UTC)
+                            .toInstant();
+
+                    return new TimeBucketDto(
+                            instant,
+                            ((Number) r[1]).longValue()
+                    );
+                })
                 .collect(Collectors.toList());
     }
 }

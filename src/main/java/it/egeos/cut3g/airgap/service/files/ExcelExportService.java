@@ -1,6 +1,7 @@
 package it.egeos.cut3g.airgap.service.files;
 
 import it.egeos.cut3g.airgap.api.dto.PackageStateStatsDto;
+import it.egeos.cut3g.airgap.api.dto.StatsPackageDto;
 import it.egeos.cut3g.airgap.api.dto.TransactionStatsDto;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -16,7 +17,7 @@ import java.util.List;
 public class ExcelExportService {
 
     public byte[] exportPackageStatsXls(
-            List<PackageStateStatsDto> stats
+            List<StatsPackageDto> stats
     ) {
         try (Workbook workbook = new XSSFWorkbook()) {
 
@@ -28,7 +29,7 @@ public class ExcelExportService {
             header.createCell(1).setCellValue("Count");
 
             int rowIdx = 1;
-            for (PackageStateStatsDto s : stats) {
+            for (StatsPackageDto s : stats) {
                 Row row = sheet.createRow(rowIdx++);
                 row.createCell(0).setCellValue(s.getState().name());
                 row.createCell(1).setCellValue(s.getCount());
