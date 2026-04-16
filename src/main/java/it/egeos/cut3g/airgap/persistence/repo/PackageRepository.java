@@ -1,6 +1,7 @@
 package it.egeos.cut3g.airgap.persistence.repo;
 
 import it.egeos.cut3g.airgap.api.dto.PackageStateStatsDto;
+import it.egeos.cut3g.airgap.api.dto.StatsPackageDto;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -39,8 +40,16 @@ public interface PackageRepository extends JpaRepository<PackageEntity, String> 
     @Query("select p from PackageEntity p where p.state = :state and p.exportedAt < :threshold")
     List<PackageEntity> findArchivedBefore(@Param("state") PackageState state, @Param("threshold") Instant threshold);
 
-    @Query("select new it.egeos.cut3g.airgap.api.dto.PackageStateStatsDto(p.state, count(p)) from PackageEntity p group by p.state")
-    List<PackageStateStatsDto> countPackagesByState();
+    @Query("SELECT new it.egeos.cut3g.airgap.api.dto.StatsPackageDto(p.state, COUNT(p)) FROM PackageEntity p group by p.state")
+    List<StatsPackageDto> countPackagesByState();
 
+    @Query(value = "SELECT p.state, COUNT(*) FROM airgap.t_airgap_package p WHERE p.transaction_start_time >= :from AND p.transaction_stop_time <= :to GROUP BY p.state", nativeQuery = true)
+    List<Object[]> countByStateBetweenRaw(@Param("from") Instant from, @Param("to") Instant to);
+
+    @Query(value = "SELECT p.state, COUNT(*) FROM airgap.t_airgap_package p WHERE p.state IN (:states) AND p.transaction_start_time >= :from AND p.transaction_stop_time <= :to GROUP BY p.state", nativeQuery = true)
+    List<Object[]> countCriticalStatesBetweenRaw(@Param("states") List<String> states, @Param("from") Instant from, @Param("to") Instant to);
+
+    @Query(value = "SELECT DATE(p.transaction_stop_time), COUNT(*) FROM airgap.t_airgap_package p WHERE p.state = :state AND p.transaction_start_time >= :from AND p.transaction_stop_time <= :to GROUP BY DATE(p.transaction_stop_time) ORDER BY DATE(p.transaction_stop_time)", nativeQuery = true)
+    List<Object[]> heatmapRaw(@Param("state") String state, @Param("from") Instant from, @Param("to") Instant to);
 
 }

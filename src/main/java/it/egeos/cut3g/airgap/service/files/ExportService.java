@@ -1,6 +1,7 @@
 package it.egeos.cut3g.airgap.service.files;
 
 import it.egeos.cut3g.airgap.api.dto.PackageStateStatsDto;
+import it.egeos.cut3g.airgap.api.dto.StatsPackageDto;
 import it.egeos.cut3g.airgap.api.dto.TransactionStatsDto;
 import org.springframework.stereotype.Service;
 
@@ -11,12 +12,12 @@ import java.util.List;
 public class ExportService {
 
         public byte[] exportPackageStatsCsv(
-                List<PackageStateStatsDto> stats
+                List<StatsPackageDto> stats
         ) {
             StringBuilder sb = new StringBuilder();
             sb.append("package_state,count\n");
 
-            for (PackageStateStatsDto s : stats) {
+            for (StatsPackageDto s : stats) {
                 sb.append(s.getState())
                         .append(',')
                         .append(s.getCount())
