@@ -92,6 +92,9 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf().disable()
+                .headers()
+                .frameOptions().sameOrigin()
+                .and()
                 .exceptionHandling()
                 .authenticationEntryPoint(authenticationEntryPoint())
                 .and()
