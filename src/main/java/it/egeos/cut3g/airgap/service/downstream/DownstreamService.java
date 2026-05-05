@@ -127,7 +127,7 @@ public class DownstreamService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PackageEntity generateAndDeliverLatest(String username) {
-        TransactionEntity tx = new TransactionEntity();
+        TransactionEntity tx = null;
         try {
             Optional<PackageEntity> created = packagingService.createLatestOrAutoPackage(username);
             if (created.isEmpty()) {
@@ -154,8 +154,12 @@ public class DownstreamService {
             transactionService.closeSuccess(tx.getId(), "SUCCESS: Generated and downloaded latest package");
             return pkg;
 
-        } catch (RuntimeException ex) {
+        } catch (Exception ex) {
+        if (tx != null && tx.getId() != null) {
             transactionService.closeFailure(tx.getId(), "FAILED: Downstream transaction failed - " + ex.getMessage(), username);
+            } else {
+             log.warn("No TX to close (failure before TX creation): {}", ex.getMessage());
+            }
             throw ex;
         }
     }
