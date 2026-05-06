@@ -36,7 +36,7 @@ public class AutoUnzipJob {
         }
 
         try {
-            importService.importUploadedPackage(pkg.get(), "auto");
+            importService.importUploadedPackage(pkg.get(), "auto", false);
         } catch (Exception e) {
             e.printStackTrace(); // mos crash scheduler
         }

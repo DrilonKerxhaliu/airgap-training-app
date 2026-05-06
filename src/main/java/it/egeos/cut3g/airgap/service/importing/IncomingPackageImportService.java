@@ -75,7 +75,7 @@ public class IncomingPackageImportService {
     private String archiveDir;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public UploadPackageEntity importUploadedPackage(Path tarPath, String username) {
+    public UploadPackageEntity importUploadedPackage(Path tarPath, String username, boolean contingency) {
 
         Path normalizedTar = tarPath.toAbsolutePath().normalize();
         String packageName = normalizedTar.getFileName().toString();
@@ -123,11 +123,16 @@ public class IncomingPackageImportService {
 
         if (!reprocess) {
 
-            uploadSequenceService.reserveNext(sequence);
+            if (!contingency) {
+                uploadSequenceService.reserveNext(sequence);
+                uploadPkg.setSequenceIndex(sequence);
+            } else {
+                log.warn("CONTINGENCY MODE ENABLED → skipping sequence validation for package={}", packageName);
+                uploadPkg.setSequenceIndex(null);
+            }
 
             uploadPkg = new UploadPackageEntity();
             uploadPkg.setPackageName(packageName);
-            uploadPkg.setSequenceIndex(sequence);
             uploadPkg.setOriginalTarPath(normalizedTar.toString());
             uploadPkg.setStatus(UploadPackageStatus.RECEIVED);
             uploadPkg.setUploadedBy(username != null ? username : "auto");

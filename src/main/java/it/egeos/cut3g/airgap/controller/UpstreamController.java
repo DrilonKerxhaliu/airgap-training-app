@@ -45,9 +45,10 @@ public class UpstreamController {
 
     @PostMapping("/package/{packageName}/upload")
     public ResponseEntity<?> uploadPackage(@PathVariable String packageName,
-                                           @RequestParam(value = "username", required = false) String username) {
+                                           @RequestParam(value = "username", required = false) String username,
+                                           @RequestParam(value = "contingency", defaultValue = "false") boolean contingency ) {
 
-        UploadPackageEntity pkg = uploadService.uploadPackage(packageName, username);
+        UploadPackageEntity pkg = uploadService.uploadPackage(packageName, username, contingency);
 
         return ResponseEntity.ok(
                 java.util.Map.of(
@@ -64,9 +65,10 @@ public class UpstreamController {
     @PostMapping(value = "/package/dragdrop", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadPackageFile(
             @RequestPart("file") MultipartFile zipFile,
-            @RequestParam(value = "username", required = false) String username ) throws IOException {
+            @RequestParam(value = "username", required = false) String username,
+            @RequestParam(value = "contingency", defaultValue = "false") boolean contingency ) throws IOException {
 
-        UploadPackageEntity pkg = uploadService.dragAndDrop(zipFile, username);
+        UploadPackageEntity pkg = uploadService.dragAndDrop(zipFile, username, contingency);
 
         return ResponseEntity.ok(
                 java.util.Map.of(

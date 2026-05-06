@@ -24,8 +24,8 @@ public class UploadPackageEntity {
     @Column(name = "package_name", nullable = false, unique = true)
     private String packageName;
 
-    @Column(name = "sequence_index", nullable = false, unique = true)
-    private long sequenceIndex;
+    @Column(name = "sequence_index", unique = true)
+    private Long sequenceIndex;
 
     @Column(name = "original_tar_path", length = 1024)
     private String originalTarPath;
@@ -90,11 +90,11 @@ public class UploadPackageEntity {
         this.packageName = packageName;
     }
 
-    public long getSequenceIndex() {
+    public Long getSequenceIndex() {
         return sequenceIndex;
     }
 
-    public void setSequenceIndex(long sequenceIndex) {
+    public void setSequenceIndex(Long sequenceIndex) {
         this.sequenceIndex = sequenceIndex;
     }
 

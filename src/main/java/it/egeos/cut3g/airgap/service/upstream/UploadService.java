@@ -59,7 +59,7 @@ public class UploadService {
     @Autowired
     private TarListingService tarListingService;
 
-    public UploadPackageEntity uploadPackage(String packageName, String username) {
+    public UploadPackageEntity uploadPackage(String packageName, String username, boolean contingency) {
         Path uploadedRoot = Paths.get(uploadedDir).toAbsolutePath().normalize();
         Path tarPath = uploadedRoot.resolve(packageName).normalize();
 
@@ -73,10 +73,10 @@ public class UploadService {
 
         log.info("UPLOAD REQUEST packageName={} path={}", packageName, tarPath);
 
-        return incomingPackageImportService.importUploadedPackage(tarPath, username);
+        return incomingPackageImportService.importUploadedPackage(tarPath, username, contingency);
     }
 
-    public UploadPackageEntity dragAndDrop(MultipartFile zipFile, String username) throws IOException {
+    public UploadPackageEntity dragAndDrop(MultipartFile zipFile, String username, boolean contingency) throws IOException {
         Path uploadedRoot = Paths.get(uploadedDir).toAbsolutePath().normalize();
         Files.createDirectories(uploadedRoot);
         String originalFilename = zipFile.getOriginalFilename();
@@ -94,7 +94,7 @@ public class UploadService {
         zipFile.transferTo(targetPath);
         log.info("UPLOAD (MULTIPART) saved file={}, starting import", originalFilename);
 
-        return incomingPackageImportService.importUploadedPackage(targetPath, username); }
+        return incomingPackageImportService.importUploadedPackage(targetPath, username, contingency); }
 
     public UpstreamStatusResponse status() {
         UpstreamStatusResponse out = new UpstreamStatusResponse();

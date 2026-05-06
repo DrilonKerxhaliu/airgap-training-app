@@ -71,7 +71,7 @@ create table if not exists airgap.t_airgap_upload_package
 (
     id                    varchar(36) primary key,
     package_name          varchar(255) not null,
-    sequence_index        bigint       not null,
+    sequence_index        bigint,
     original_tar_path     varchar(1024),
     archived_tar_path     varchar(1024),
     work_dir_path         varchar(1024),
@@ -94,7 +94,8 @@ create unique index if not exists idx_upload_pkg_name
     on airgap.t_airgap_upload_package(package_name);
 
 create unique index if not exists idx_upload_pkg_seq
-    on airgap.t_airgap_upload_package(sequence_index);
+    on airgap.t_airgap_upload_package(sequence_index)
+    where sequence_index is not null;
 
 create index if not exists idx_upload_pkg_status
     on airgap.t_airgap_upload_package(status);
