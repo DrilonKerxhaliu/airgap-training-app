@@ -231,8 +231,8 @@ public class FolderWatcherService {
 
             FileEventDto dto = new FileEventDto();
             dto.setId(saved.getId());
-            dto.setFolder(relativePath.split("/")[0]);
-            dto.setFilename(relativePath.split("/")[1]);
+            dto.setFolder(extractFolder(relativePath));
+            dto.setFilename(extractFilename(relativePath));
             dto.setSizeBytes(saved.getSizeBytes());
             dto.setArrivedAt(saved.getReceivedTime());
             dto.setState(saved.getState());
@@ -302,5 +302,23 @@ public class FolderWatcherService {
         boolean isStable(Instant now, long stableSeconds) {
             return now.minusSeconds(stableSeconds).isAfter(lastChange);
         }
+    }
+
+    private String extractFilename(String relativePath) {
+        String normalized = relativePath.replace("\\", "/");
+        int idx = normalized.lastIndexOf("/");
+
+        return idx >= 0
+                ? normalized.substring(idx + 1)
+                : normalized;
+    }
+
+    private String extractFolder(String relativePath) {
+        String normalized = relativePath.replace("\\", "/");
+        int idx = normalized.lastIndexOf("/");
+
+        return idx >= 0
+                ? normalized.substring(0, idx)
+                : "";
     }
 }

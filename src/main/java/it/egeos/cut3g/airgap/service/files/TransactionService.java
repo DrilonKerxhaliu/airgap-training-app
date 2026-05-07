@@ -96,8 +96,12 @@ public class TransactionService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void closeFailure(String txId, String note, String username) {
-        TransactionEntity tx = transactionRepository.findById(txId)
-                .orElseThrow(() -> new IllegalArgumentException("TX not found: " + txId));
+         TransactionEntity tx = transactionRepository.findById(txId).orElse(null);
+
+        if (tx == null) {
+            log.warn("TX not found for failure: {}", txId);
+            return;
+        }
 
         tx.setState(TransactionState.FAILED);
         tx.setEndTs(Instant.now());

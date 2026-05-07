@@ -33,6 +33,9 @@ public class TransferProtocolService {
     @Autowired
     private FtpTransferService ftpTransferService;
 
+    @Autowired
+    private SftpTransferService sftpTransferService;
+
     @PostConstruct
     public void loadConfig() throws Exception {
         try (Reader reader = Files.newBufferedReader(Path.of(configPath))) {
@@ -110,6 +113,10 @@ public class TransferProtocolService {
 
             case "ftp":
                 ftpTransferService.transfer(pkg, uri);
+                break;
+
+            case "sftp":
+                sftpTransferService.transfer(pkg, uri);
                 break;
 
             default:

@@ -1,30 +1,22 @@
-FROM maven:3.9.9-eclipse-temurin-17 AS build
-
-WORKDIR /build
-COPY pom.xml .
-RUN mvn -B -q dependency:go-offline
-
-COPY src ./src
-RUN mvn -B -q package -DskipTests
-
 FROM eclipse-temurin:17-jre
 
-RUN groupadd -g 1001 airgap && \
-    useradd -m -u 1001 -g airgap -s /bin/bash airgap
+# App user
+RUN useradd -ms /bin/bash airgap
 
-WORKDIR /opt/airgap
+# Use a local-friendly working directory
+WORKDIR /app
 
-COPY --from=build /build/target/*.jar app.jar
+# Copy jar
+COPY target/airgap-service-1.0.1.jar app.jar
 
-# Create runtime dirs (IMPORTANT)
-RUN mkdir -p /opt/airgap/runtime && \
-    mkdir -p /opt/airgap/downstream && \
-    mkdir -p /opt/airgap/upstream && \
-    chown -R airgap:airgap /opt/airgap
+# Create data directories and set permissions
+RUN mkdir -p /app/data && \
+    mkdir -p /app/tmp && \
+    chown -R airgap:airgap /app && \
+    chmod -R 755 /app
 
-# Run as non-root
 USER airgap
 
 EXPOSE 8081
 
-ENTRYPOINT ["java","-jar","/opt/airgap/app.jar"]
+ENTRYPOINT ["java","-jar","app.jar"]
