@@ -194,6 +194,14 @@ public class PackagingService {
         }
         fileItemRepository.saveAll(activeFiles);
 
+        // REMOVE from SSE snapshot
+        List<String> packedIds = activeFiles.stream()
+                .map(FileItemEntity::getId)
+                .collect(Collectors.toList());
+
+        fileSseService.removeFromNewByIds(packedIds);
+        fileSseService.flushNow();
+
         log.info("Created package {} with {} files", pkgName, activeFiles.size());
         return pkg;
     }
