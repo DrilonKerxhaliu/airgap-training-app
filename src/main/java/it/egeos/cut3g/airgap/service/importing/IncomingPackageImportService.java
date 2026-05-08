@@ -25,6 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
@@ -64,9 +66,11 @@ public class IncomingPackageImportService {
     @Autowired
     private TransferProtocolService transferProtocolService;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     @Value("${airgap.unpack.work.dir}")
     private String unpackWorkDir;
-
 
     @Value("${airgap.collect.out}")
     private String outDir;
@@ -101,6 +105,10 @@ public class IncomingPackageImportService {
 
                 // cleanup previous files
                 uploadFileRepository.deleteByUploadPackageId(uploadPkg.getId());
+                uploadFileRepository.flush();
+                uploadPackageRepository.deleteById(uploadPkg.getId());
+                uploadPackageRepository.flush();
+                entityManager.clear();
 
                 // reset fields
                 uploadPkg.setImportedAt(null);
@@ -122,16 +130,15 @@ public class IncomingPackageImportService {
         }
 
         if (!reprocess) {
+            uploadPkg = new UploadPackageEntity();
 
             if (!contingency) {
                 uploadSequenceService.reserveNext(sequence);
                 uploadPkg.setSequenceIndex(sequence);
             } else {
                 log.warn("CONTINGENCY MODE ENABLED → skipping sequence validation for package={}", packageName);
-                uploadPkg.setSequenceIndex(null);
             }
 
-            uploadPkg = new UploadPackageEntity();
             uploadPkg.setPackageName(packageName);
             uploadPkg.setOriginalTarPath(normalizedTar.toString());
             uploadPkg.setStatus(UploadPackageStatus.RECEIVED);
@@ -188,11 +195,17 @@ public class IncomingPackageImportService {
 
             persistFilesFromManifest(uploadPkg, manifest, result);
 
+            long totalSize = manifest.getFiles()
+                    .stream()
+                    .mapToLong(ManifestFileItem::getSizeBytes)
+                    .sum();
+
+            uploadPkg.setFileCount(manifest.getFiles().size());
+            uploadPkg.setTotalSizeBytes(totalSize);
+
             uploadPkg.setStatus(UploadPackageStatus.DELIVERING);
             uploadPkg.setNote("Files delivered to collect/out");
             uploadPkg = uploadNewPackageService.saveNewPackage(uploadPkg);
-
-            finalizePackageStats(uploadPkg);
 
             uploadPkg.setStatus(UploadPackageStatus.IMPORTED);
             uploadPkg.setImportedAt(Instant.now());
@@ -203,8 +216,9 @@ public class IncomingPackageImportService {
             transactionService.closeSuccess(tx.getId(), "UPLOAD IMPORT SUCCESS");
 
             cleanupWorkDir(workDir);
+            cleanupWorkDir(Paths.get(outDir));
 
-            log.info("UPLOAD IMPORT SUCCESS package={} sequence={} uploadPackageId={}",
+            log.info("UPLOAD IMPORT FINISHED WITH SUCCESS package={} sequence={} uploadPackageId={}",
                     packageName, sequence, uploadPkg.getId());
 
             return uploadPkg;
@@ -309,21 +323,29 @@ public class IncomingPackageImportService {
         }
     }
 
-    private void cleanupWorkDir(Path workDir) {
-        try {
-            if (workDir != null && Files.exists(workDir)) {
-                Files.walk(workDir)
-                        .sorted(Comparator.reverseOrder())
-                        .forEach(p -> {
-                            try {
-                                Files.deleteIfExists(p);
-                            } catch (Exception e) {
-                                log.warn("Unable to delete work path {}", p, e);
-                            }
-                        });
-            }
-        } catch (Exception e) {
-            log.warn("WORK cleanup failed for {}", workDir, e);
+private void cleanupWorkDir(Path workDir) {
+
+    log.info("CLEANUP WORK DIR path={}", workDir);
+
+    try {
+        if (workDir != null && Files.exists(workDir)) {
+
+            Files.walk(workDir)
+                    .sorted(Comparator.reverseOrder())
+                    .forEach(p -> {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (Exception e) {
+                            log.warn("Unable to delete work path {}", p, e);
+                        }
+                    });
+
+        } else {
+            log.warn("CLEANUP PATH DOES NOT EXIST path={}", workDir);
         }
+
+    } catch (Exception e) {
+        log.warn("WORK cleanup failed for {}", workDir, e);
     }
+}
 }
