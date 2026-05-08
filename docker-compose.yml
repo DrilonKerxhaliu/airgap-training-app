@@ -40,10 +40,6 @@ services:
       SPRING_DATASOURCE_PASSWORD: airgap_pass
       SPRING_PROFILES_ACTIVE: docker
       AIRGAP_AES_KEY: ${AIRGAP_AES_KEY}
-      CAS_AUTHORIZATION_ENDPOINT: http://172.30.150.199/cas
-      CAS_VALIDATE_ENDPOINT: http://172.30.150.199/cas
-      CAS_LOGOUT_URL: http://172.30.150.199/cas/logout
-      CAS_REDIRECT_URI: http://172.30.150.98:8081/airgapservice/login/cas
     volumes:
       - ./config:/opt/airgap/config
       - ./downstream/data/collection/in:/opt/airgap/downstream/data/collection/in
