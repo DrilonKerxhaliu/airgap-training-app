@@ -54,7 +54,6 @@ public class UpstreamController {
                 java.util.Map.of(
                         "uploadPackageId", pkg.getId(),
                         "packageName", pkg.getPackageName(),
-                        "sequenceIndex", pkg.getSequenceIndex(),
                         "status", pkg.getStatus().name(),
                         "fileCount", pkg.getFileCount() != null ? pkg.getFileCount() : 0,
                         "totalSizeBytes", pkg.getTotalSizeBytes() != null ? pkg.getTotalSizeBytes() : 0

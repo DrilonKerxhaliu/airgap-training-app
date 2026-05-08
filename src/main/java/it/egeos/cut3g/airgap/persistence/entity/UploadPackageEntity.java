@@ -71,7 +71,6 @@ public class UploadPackageEntity {
     @Column(name = "created_at")
     private Instant createdAt;
 
-    @UpdateTimestamp
     @Column(name = "removed_at")
     private Instant removedAt;
 
