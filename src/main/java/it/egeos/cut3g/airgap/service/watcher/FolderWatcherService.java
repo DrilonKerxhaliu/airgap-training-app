@@ -159,6 +159,12 @@ public class FolderWatcherService {
             FileItemEntity existing =
                     fileItemRepository.findByRelativePath(relativePath).orElse(null);
 
+            if (fsSize <= 0) {
+                log.warn("Ignoring zero-byte file for now: {}", rootPath.relativize(file));
+                insertingFiles.put(file, new FileSnapshot(fsSize, now));
+                return;
+            }
+
             if (existing == null) {
                 log.info("New file detected: {}", relativePath);
                 markDbState(file, FileItemState.INSERT);
@@ -198,11 +204,33 @@ public class FolderWatcherService {
         Instant now = Instant.now();
 
         insertingFiles.forEach((file, snap) -> {
-            if (snap.isStable(now, stableSeconds)) {
+            try {
+                if (!Files.exists(file) || !Files.isRegularFile(file)) {
+                    insertingFiles.remove(file);
+                    return;
+                }
+
+                long currentSize = Files.size(file);
+
+                if (currentSize <= 0) {
+                    snap.update(currentSize, now);
+                    return;
+                }
+
+                if (currentSize != snap.lastSize) {
+                    snap.update(currentSize, now);
+                    return;
+                }
+
+                if (snap.isStable(now, stableSeconds)) {
+                    insertingFiles.remove(file);
+                    markDbState(file, FileItemState.NEW);
+                    log.info("File {} became STABLE → NEW", rootPath.relativize(file));
+                }
+
+            } catch (Exception e) {
                 insertingFiles.remove(file);
-                markDbState(file, FileItemState.NEW);
-                log.info("File {} became STABLE → NEW",
-                        rootPath.relativize(file));
+                log.warn("Unable to check stability for {}", file, e);
             }
         });
     }

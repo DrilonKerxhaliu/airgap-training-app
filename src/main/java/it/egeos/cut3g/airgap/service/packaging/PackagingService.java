@@ -37,29 +37,21 @@ import java.util.stream.Collectors;
 public class PackagingService {
 
     private static final Logger log = LoggerFactory.getLogger(PackagingService.class);
-
+    private final Gson gson = new Gson();
     @Value("${airgap.collect.in}")
     private String collectedIn;
-
     @Value("${airgap.save.original.packages.dir}")
     private String packagesDir;
-
     @Autowired
     private FileItemRepository fileItemRepository;
-
     @Autowired
     private PackageRepository packageRepository;
-
     @Autowired
     private TarService tarService;
-
     @Autowired
     private CryptoService cryptoService;
-
     @Autowired
     private FileSseService fileSseService;
-
-    private final Gson gson = new Gson();
 
     /**
      * LATEST = on-demand packaging triggered by REST.
@@ -117,9 +109,7 @@ public class PackagingService {
 
         // Lock by IDs to ensure no concurrent changes
         List<FileItemEntity> activeFiles = fileItemRepository.findByIdsForUpdate(reservedIds);
-        activeFiles = activeFiles.stream()
-                .filter(f -> f.getState() == FileItemState.ACTIVE)
-                .collect(Collectors.toList());
+        activeFiles = activeFiles.stream().filter(f -> f.getState() == FileItemState.ACTIVE).collect(Collectors.toList());
 
         if (activeFiles.isEmpty()) {
             // Another process may have taken them, or rollback happened.
@@ -147,63 +137,79 @@ public class PackagingService {
 
         // Build data TAR bytes
         Path inRoot = Paths.get(collectedIn);
-        List<String> relPaths = activeFiles.stream().map(FileItemEntity::getRelativePath).collect(Collectors.toList());
+        List<String> relPaths = activeFiles.stream().map(FileItemEntity::getRelativePath).distinct().collect(Collectors.toList());
 
-        // Build TAR in memory (existing design)
-        byte[] dataTarBytes = tarService.buildDataTar(inRoot, relPaths);
-        String md5 = HashUtils.md5Hex(dataTarBytes);
-
-        // Build manifest JSON
-        PackageManifest manifest = new PackageManifest();
-        manifest.setPackageName(pkgName);
-        manifest.setMd5DataTar(md5);
-        manifest.setFiles(activeFiles.stream()
-                .map(f -> new ManifestFileItem(f.getRelativePath(), f.getSizeBytes()))
-                .collect(Collectors.toList()));
-        byte[] manifestJson = gson.toJson(manifest).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-
-        // Encrypt manifest (AES-256)
-        byte[] manifestEnc = cryptoService.encrypt(manifestJson);
-
-        // Write outer TAR to disk [final package .tar]
-        Path outPath = Paths.get(packagesDir).resolve(pkgName);
+        Path packageDir = Paths.get(packagesDir);
+        Path tempDir = packageDir.resolve(".tmp");
+        Path tempDataTar = tempDir.resolve(dataTarName);
+        Path outPath = packageDir.resolve(pkgName);
 
         try {
-            tarService.writeOuterTar(outPath, "manifest.enc", manifestEnc, dataTarName, dataTarBytes);
-        } catch (RuntimeException ex) {
-            // best-effort cleanup
-            try { Files.deleteIfExists(outPath); } catch (Exception ignored) {}
-            throw ex;
+
+            Files.createDirectories(tempDir);
+            Files.createDirectories(packageDir);
+
+            // build data temp tar
+
+            tarService.buildDataTar(inRoot, relPaths, tempDataTar);
+
+            String md5 = HashUtils.md5Hex(tempDataTar);
+
+            // Build manifest JSON
+            PackageManifest manifest = new PackageManifest();
+            manifest.setPackageName(pkgName);
+            manifest.setMd5DataTar(md5);
+            manifest.setFiles(activeFiles.stream().map(f -> new ManifestFileItem(f.getRelativePath(), f.getSizeBytes())).collect(Collectors.toList()));
+            byte[] manifestJson = gson.toJson(manifest).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+            // Encrypt manifest (AES-256)
+            byte[] manifestEnc = cryptoService.encrypt(manifestJson);
+
+            // Write outer TAR to disk [final package .tar]
+
+            tarService.writeOuterTar(outPath, "manifest.enc", manifestEnc, dataTarName, tempDataTar);
+
+            long totalSize = activeFiles.stream().mapToLong(FileItemEntity::getSizeBytes).sum();
+
+            pkg.setMd5DataTar(md5);
+            pkg.setTotalSizeBytes(totalSize);
+            pkg.setPackagePath(outPath.toString());
+            pkg.setState(PackageState.CREATED);
+
+            packageRepository.save(pkg);
+            log.info("Saved package with id={}", pkg.getId());
+            // ACTIVE -> PACKED (remove from NEW list already, no SSE needed)
+            for (FileItemEntity f : activeFiles) {
+                f.setState(FileItemState.PACKED);
+            }
+            fileItemRepository.saveAll(activeFiles);
+
+            // REMOVE from SSE snapshot
+            List<String> packedIds = activeFiles.stream().map(FileItemEntity::getId).collect(Collectors.toList());
+
+            fileSseService.removeFromNewByIds(packedIds);
+            fileSseService.flushNow();
+
+            log.info("Created package {} with {} files", pkgName, activeFiles.size());
+            return pkg;
+
         } catch (Exception ex) {
-            try { Files.deleteIfExists(outPath); } catch (Exception ignored) {}
-            throw new RuntimeException("Unable to write package tar: " + ex.getMessage(), ex);
+
+            try {
+                Files.deleteIfExists(outPath);
+            } catch (Exception ignored) {
+            }
+
+            throw new RuntimeException("Unable to create package: " + ex.getMessage(), ex);
+
+        } finally {
+            // delete temp tar
+            try {
+                Files.deleteIfExists(tempDataTar);
+            } catch (Exception e) {
+                log.warn("Unable to delete temp data tar {}", tempDataTar, e);
+            }
         }
-
-        long totalSize = activeFiles.stream().mapToLong(FileItemEntity::getSizeBytes).sum();
-
-        pkg.setMd5DataTar(md5);
-        pkg.setTotalSizeBytes(totalSize);
-        pkg.setPackagePath(outPath.toString());
-        pkg.setState(PackageState.CREATED);
-
-        packageRepository.save(pkg);
-        log.info("Saved package with id={}", pkg.getId());
-        // ACTIVE -> PACKED (remove from NEW list already, no SSE needed)
-        for (FileItemEntity f : activeFiles) {
-            f.setState(FileItemState.PACKED);
-        }
-        fileItemRepository.saveAll(activeFiles);
-
-        // REMOVE from SSE snapshot
-        List<String> packedIds = activeFiles.stream()
-                .map(FileItemEntity::getId)
-                .collect(Collectors.toList());
-
-        fileSseService.removeFromNewByIds(packedIds);
-        fileSseService.flushNow();
-
-        log.info("Created package {} with {} files", pkgName, activeFiles.size());
-        return pkg;
     }
 
     /**
