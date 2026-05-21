@@ -15,10 +15,11 @@ public interface FileItemRepository extends JpaRepository<FileItemEntity, String
     @Query(" select f from FileItemEntity f where f.state = :state order by f.receivedTime asc ")
     List<FileItemEntity> findByStateForUpdate(@Param("state") FileItemState state);
 
+    List<FileItemEntity> findByState(FileItemState state);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(" select f from FileItemEntity f where f.id in :ids ")
     List<FileItemEntity> findByIdsForUpdate(@Param("ids") List<String> ids);
-
 
     @Query(" select count(f) from FileItemEntity f where f.state = :state ")
     long countByState(@Param("state") FileItemState state);

@@ -16,6 +16,7 @@ import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.*;
@@ -72,8 +73,9 @@ public class FolderWatcherService {
 
         log.info("Starting FolderWatcher on {}", rootPath);
 
-        // initial scan (VERY IMPORTANT)
+        // initial scan
         initialScan();
+        republishExistingNewFiles();
 
         // start watcher loop (with auto-restart)
         watcherExecutor.submit(this::watchForever);
@@ -95,6 +97,59 @@ public class FolderWatcherService {
             log.info("Initial scan completed for {}", rootPath);
         } catch (IOException e) {
             log.warn("Initial scan failed for {}", rootPath, e);
+        }
+    }
+
+    private void republishExistingNewFiles() {
+
+        try {
+
+            List<FileItemEntity> files =
+                    fileItemRepository.findByState(FileItemState.NEW);
+
+            for (FileItemEntity entity : files) {
+
+                try {
+
+                    Path fullPath = rootPath.resolve(entity.getRelativePath())
+                            .normalize();
+
+                    if (!Files.exists(fullPath)) {
+                        log.warn(
+                                "NEW file missing on disk -> {}",
+                                entity.getRelativePath()
+                        );
+                        continue;
+                    }
+
+                    FileEventDto dto = new FileEventDto();
+                    dto.setId(entity.getId());
+                    dto.setFolder(extractFolder(entity.getRelativePath()));
+                    dto.setFilename(extractFilename(entity.getRelativePath()));
+                    dto.setSizeBytes(entity.getSizeBytes());
+                    dto.setArrivedAt(entity.getReceivedTime());
+                    dto.setState(entity.getState());
+
+                    fileSseService.onFileEvent(dto);
+
+                    log.info(
+                            "Republished NEW file to SSE -> {}",
+                            entity.getRelativePath()
+                    );
+
+                } catch (Exception e) {
+                    log.warn(
+                            "Failed to republish file {}",
+                            entity.getRelativePath(),
+                            e
+                    );
+                }
+            }
+
+            log.info("Republish existing NEW files completed");
+
+        } catch (Exception e) {
+            log.error("Failed to republish NEW files on startup", e);
         }
     }
 
