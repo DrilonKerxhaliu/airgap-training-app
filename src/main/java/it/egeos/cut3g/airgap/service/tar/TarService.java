@@ -7,48 +7,94 @@ import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.nio.file.*;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
-/**
- * Creates TAR archives using Apache Commons Compress.
- */
 @Service
 public class TarService {
 
-    public byte[] buildDataTar(Path rootIn, List<String> relativePaths) {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             TarArchiveOutputStream tarOut = new TarArchiveOutputStream(bos)) {
+    public Path buildDataTar(Path rootIn, List<String> relativePaths, Path outputDataTarPath) {
+        try {
+            Path normalizedRoot = rootIn.toAbsolutePath().normalize();
+            Files.createDirectories(outputDataTarPath.getParent());
 
-            tarOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
+            Set<String> uniqueRelativePaths = new LinkedHashSet<>(relativePaths);
 
-            for (String rel : relativePaths) {
-                Path p = rootIn.resolve(rel).normalize();
-                if (!Files.exists(p) || Files.isDirectory(p)) {
-                    continue;
+            try (OutputStream fos = Files.newOutputStream(
+                    outputDataTarPath,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING
+            );
+                 BufferedOutputStream bos = new BufferedOutputStream(fos);
+                 TarArchiveOutputStream tarOut = new TarArchiveOutputStream(bos)) {
+
+                tarOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
+                tarOut.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_POSIX);
+
+                for (String rel : uniqueRelativePaths) {
+                    if (rel == null || rel.isBlank()) {
+                        continue;
+                    }
+
+                    String tarEntryName = normalizeTarEntryName(rel);
+                    Path filePath = normalizedRoot.resolve(tarEntryName).normalize();
+
+                    if (!filePath.startsWith(normalizedRoot)) {
+                        throw new IllegalStateException("Invalid path outside root: " + rel);
+                    }
+
+                    if (!Files.exists(filePath)) {
+                        throw new IllegalStateException("Missing file while creating data TAR: " + tarEntryName);
+                    }
+
+                    if (!Files.isRegularFile(filePath)) {
+                        continue;
+                    }
+
+                    long size = Files.size(filePath);
+                    if (size <= 0) {
+                        throw new IllegalStateException("Refusing to package zero-byte file: " + tarEntryName);
+                    }
+
+                    TarArchiveEntry entry = new TarArchiveEntry(filePath.toFile(), tarEntryName);
+                    entry.setSize(size);
+
+                    tarOut.putArchiveEntry(entry);
+                    try (InputStream in = Files.newInputStream(filePath)) {
+                        IOUtils.copyLarge(in, tarOut);
+                    }
+                    tarOut.closeArchiveEntry();
                 }
-                TarArchiveEntry entry = new TarArchiveEntry(p.toFile(), rel);
-                entry.setSize(Files.size(p));
-                tarOut.putArchiveEntry(entry);
-                try (InputStream in = Files.newInputStream(p)) {
-                    IOUtils.copy(in, tarOut);
-                }
-                tarOut.closeArchiveEntry();
+
+                tarOut.finish();
             }
-            tarOut.finish();
-            return bos.toByteArray();
+
+            return outputDataTarPath;
+
         } catch (Exception e) {
             throw new RuntimeException("Unable to create data TAR", e);
         }
     }
 
-    public void writeOuterTar(Path outTarPath, String encryptedManifestName, byte[] encryptedManifestBytes,
-                             String dataTarName, byte[] dataTarBytes) {
+    public void writeOuterTar(Path outTarPath,
+                              String encryptedManifestName,
+                              byte[] encryptedManifestBytes,
+                              String dataTarName,
+                              Path dataTarPath) {
         try {
             Files.createDirectories(outTarPath.getParent());
-            try (OutputStream fos = Files.newOutputStream(outTarPath, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                 TarArchiveOutputStream tarOut = new TarArchiveOutputStream(fos)) {
+
+            try (OutputStream fos = Files.newOutputStream(
+                    outTarPath,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING
+            );
+                 BufferedOutputStream bos = new BufferedOutputStream(fos);
+                 TarArchiveOutputStream tarOut = new TarArchiveOutputStream(bos)) {
 
                 tarOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
+                tarOut.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_POSIX);
 
                 // manifest.enc
                 TarArchiveEntry manifestEntry = new TarArchiveEntry(encryptedManifestName);
@@ -59,15 +105,22 @@ public class TarService {
 
                 // data tar
                 TarArchiveEntry dataEntry = new TarArchiveEntry(dataTarName);
-                dataEntry.setSize(dataTarBytes.length);
+                dataEntry.setSize(Files.size(dataTarPath));
                 tarOut.putArchiveEntry(dataEntry);
-                tarOut.write(dataTarBytes);
-                tarOut.closeArchiveEntry();
 
+                try (InputStream in = Files.newInputStream(dataTarPath)) {
+                    IOUtils.copyLarge(in, tarOut);
+                }
+
+                tarOut.closeArchiveEntry();
                 tarOut.finish();
             }
         } catch (Exception e) {
             throw new RuntimeException("Unable to write outer TAR", e);
         }
+    }
+
+    private String normalizeTarEntryName(String rel) {
+        return rel.replace("\\", "/").replaceFirst("^/+", "");
     }
 }

@@ -16,6 +16,7 @@ import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.*;
@@ -72,8 +73,9 @@ public class FolderWatcherService {
 
         log.info("Starting FolderWatcher on {}", rootPath);
 
-        // initial scan (VERY IMPORTANT)
+        // initial scan
         initialScan();
+        republishExistingNewFiles();
 
         // start watcher loop (with auto-restart)
         watcherExecutor.submit(this::watchForever);
@@ -95,6 +97,59 @@ public class FolderWatcherService {
             log.info("Initial scan completed for {}", rootPath);
         } catch (IOException e) {
             log.warn("Initial scan failed for {}", rootPath, e);
+        }
+    }
+
+    private void republishExistingNewFiles() {
+
+        try {
+
+            List<FileItemEntity> files =
+                    fileItemRepository.findByState(FileItemState.NEW);
+
+            for (FileItemEntity entity : files) {
+
+                try {
+
+                    Path fullPath = rootPath.resolve(entity.getRelativePath())
+                            .normalize();
+
+                    if (!Files.exists(fullPath)) {
+                        log.warn(
+                                "NEW file missing on disk -> {}",
+                                entity.getRelativePath()
+                        );
+                        continue;
+                    }
+
+                    FileEventDto dto = new FileEventDto();
+                    dto.setId(entity.getId());
+                    dto.setFolder(extractFolder(entity.getRelativePath()));
+                    dto.setFilename(extractFilename(entity.getRelativePath()));
+                    dto.setSizeBytes(entity.getSizeBytes());
+                    dto.setArrivedAt(entity.getReceivedTime());
+                    dto.setState(entity.getState());
+
+                    fileSseService.onFileEvent(dto);
+
+                    log.info(
+                            "Republished NEW file to SSE -> {}",
+                            entity.getRelativePath()
+                    );
+
+                } catch (Exception e) {
+                    log.warn(
+                            "Failed to republish file {}",
+                            entity.getRelativePath(),
+                            e
+                    );
+                }
+            }
+
+            log.info("Republish existing NEW files completed");
+
+        } catch (Exception e) {
+            log.error("Failed to republish NEW files on startup", e);
         }
     }
 
@@ -159,6 +214,12 @@ public class FolderWatcherService {
             FileItemEntity existing =
                     fileItemRepository.findByRelativePath(relativePath).orElse(null);
 
+            if (fsSize <= 0) {
+                log.warn("Ignoring zero-byte file for now: {}", rootPath.relativize(file));
+                insertingFiles.put(file, new FileSnapshot(fsSize, now));
+                return;
+            }
+
             if (existing == null) {
                 log.info("New file detected: {}", relativePath);
                 markDbState(file, FileItemState.INSERT);
@@ -198,11 +259,33 @@ public class FolderWatcherService {
         Instant now = Instant.now();
 
         insertingFiles.forEach((file, snap) -> {
-            if (snap.isStable(now, stableSeconds)) {
+            try {
+                if (!Files.exists(file) || !Files.isRegularFile(file)) {
+                    insertingFiles.remove(file);
+                    return;
+                }
+
+                long currentSize = Files.size(file);
+
+                if (currentSize <= 0) {
+                    snap.update(currentSize, now);
+                    return;
+                }
+
+                if (currentSize != snap.lastSize) {
+                    snap.update(currentSize, now);
+                    return;
+                }
+
+                if (snap.isStable(now, stableSeconds)) {
+                    insertingFiles.remove(file);
+                    markDbState(file, FileItemState.NEW);
+                    log.info("File {} became STABLE → NEW", rootPath.relativize(file));
+                }
+
+            } catch (Exception e) {
                 insertingFiles.remove(file);
-                markDbState(file, FileItemState.NEW);
-                log.info("File {} became STABLE → NEW",
-                        rootPath.relativize(file));
+                log.warn("Unable to check stability for {}", file, e);
             }
         });
     }
