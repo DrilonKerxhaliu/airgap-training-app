@@ -113,7 +113,7 @@ public class DownstreamService {
             transactionService.closeSuccess(tx.getId(), "SUCCESS: Downloaded successfully");
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=\"" + pkg.getPackageName())
+                            "attachment; filename=\"" + pkg.getPackageName() + "\"")
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .contentLength(Files.size(tarPath))
                     .body(new FileSystemResource(tarPath));
