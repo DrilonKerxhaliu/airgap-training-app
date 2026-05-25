@@ -89,6 +89,10 @@ public class TransferProtocolService {
 
         URI parsed = URI.create(uri);
 
+        if (!"file".equalsIgnoreCase(parsed.getScheme())) {
+            throw new IllegalArgumentException("Upstream must use file:// protocol");
+        }
+
         return Path.of(parsed).toAbsolutePath().normalize();
     }
 

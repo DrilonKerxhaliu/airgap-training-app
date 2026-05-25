@@ -268,17 +268,6 @@ public class IncomingPackageImportService {
         }
     }
 
-    private void finalizePackageStats(UploadPackageEntity uploadPkg) {
-        List<UploadFileEntity> files = uploadFileRepository.findByUploadPackageId(uploadPkg.getId());
-
-        long totalSize = files.stream().mapToLong(UploadFileEntity::getSizeBytes).sum();
-        int count = files.size();
-
-        uploadPkg.setFileCount(count);
-        uploadPkg.setTotalSizeBytes(totalSize);
-        uploadNewPackageService.saveNewPackage(uploadPkg);
-    }
-
     private void archiveTar(Path originalTar, UploadPackageEntity uploadPkg) throws Exception {
         Path archiveRoot = Paths.get(archiveDir).toAbsolutePath().normalize();
         Files.createDirectories(archiveRoot);
