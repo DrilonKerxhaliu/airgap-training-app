@@ -2,6 +2,7 @@ package it.egeos.cut3g.airgap.controller;
 
 import it.egeos.cut3g.airgap.api.ApiResponse;
 import it.egeos.cut3g.airgap.exceptions.*;
+import org.apache.catalina.connector.ClientAbortException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
@@ -51,5 +52,12 @@ public class GlobalExceptionHandler {
                 "error", "SEQUENCE_MISMATCH",
                 "message", ex.getMessage()
         ));
+    }
+
+    @ExceptionHandler(ClientAbortException.class)
+    public void handleClientAbort(ClientAbortException ex) {
+
+        log.warn("Client disconnected : {}",
+                ex.getMessage());
     }
 }
