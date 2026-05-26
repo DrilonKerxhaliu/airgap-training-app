@@ -271,7 +271,7 @@ public class DownstreamService {
             packageRepository.save(pkg);
 
             throw new PackageFileNotFoundException(
-                    "The package is no longer available"
+                    pkg.getPackagePath()
             );
         }
 
@@ -292,7 +292,7 @@ public class DownstreamService {
             packageRepository.save(pkg);
 
             throw new PackageFileNotFoundException(
-                    "The package is no longer available"
+                    pkg.getPackagePath()
             );
         }
     }
