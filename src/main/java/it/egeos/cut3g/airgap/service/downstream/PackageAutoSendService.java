@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -27,7 +28,7 @@ public class PackageAutoSendService {
 
     private static final Logger log = LoggerFactory.getLogger(PackageAutoSendService.class);
 
-    private static final long AUTO_SEND_DELAY_MS = 10_000;
+    private static final long AUTO_SEND_DELAY_MS = Duration.ofSeconds(10).toMillis();
     private static final String AUTO_USERNAME = "AUTO";
 
     @Autowired

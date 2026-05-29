@@ -9,12 +9,14 @@ import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.repo.FileItemRepository;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.service.crypto.CryptoService;
+import it.egeos.cut3g.airgap.service.downstream.PackageAutoSendService;
 import it.egeos.cut3g.airgap.service.files.FileSseService;
 import it.egeos.cut3g.airgap.service.manifest.ManifestFileItem;
 import it.egeos.cut3g.airgap.service.manifest.PackageManifest;
 import it.egeos.cut3g.airgap.service.tar.TarService;
 import it.egeos.cut3g.airgap.service.util.HashUtils;
 import it.egeos.cut3g.airgap.service.util.NameUtils;
+import it.egeos.cut3g.airgap.service.util.RuntimeConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +54,10 @@ public class PackagingService {
     private CryptoService cryptoService;
     @Autowired
     private FileSseService fileSseService;
+    @Autowired
+    private PackageAutoSendService packageAutoSendService;
+    @Autowired
+    private RuntimeConfigService runtimeConfigService;
 
     /**
      * LATEST = on-demand packaging triggered by REST.
@@ -189,6 +195,12 @@ public class PackagingService {
 
             fileSseService.removeFromNewByIds(packedIds);
             fileSseService.flushNow();
+
+            runtimeConfigService.reload();
+
+            if (runtimeConfigService.isAutoModeEnabled()) {
+                packageAutoSendService.autoSendAsync(pkg.getId());
+            }
 
             log.info("Created package {} with {} files", pkgName, activeFiles.size());
             return pkg;

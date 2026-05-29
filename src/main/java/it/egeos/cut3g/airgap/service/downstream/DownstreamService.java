@@ -68,9 +68,6 @@ public class DownstreamService {
     @Autowired
     private TransferProtocolService protocolService;
 
-    @Autowired
-    private PackageAutoSendService packageAutoSendService;
-
     public List<PackageDto> listReadyForDownload() {
         List<PackageEntity> pkgs = packageRepository.findAll();
         return pkgs.stream().map(PackageDto::from).collect(Collectors.toList());
@@ -151,8 +148,6 @@ public class DownstreamService {
             if (!Files.exists(tarPath)) {
                 throw new PackageFileNotFoundException(tarPath.toString());
             }
-
-            packageAutoSendService.autoSendAsync(pkg.getId());
 
             transactionService.closeSuccess(tx.getId(), "SUCCESS: Generated and downloaded latest package");
             return pkg;
