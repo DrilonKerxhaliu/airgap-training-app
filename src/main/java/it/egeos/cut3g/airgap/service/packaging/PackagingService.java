@@ -77,6 +77,8 @@ public class PackagingService {
         List<String> reservedIds = reserved.stream().map(FileItemEntity::getId).collect(Collectors.toList());
 
         // remove them from SSE NEW snapshot for all operators (real-time)
+
+        log.info("SSE REMOVE PACKED count={}", reservedIds.size());
         fileSseService.removeFromNewByIds(reservedIds);
         fileSseService.flushNow();
 
