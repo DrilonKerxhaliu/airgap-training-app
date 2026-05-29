@@ -120,7 +120,6 @@ public class FileSseService {
     }
 
     private void publishSnapshot(List<FileEventDto> snapshot) {
-        log.info("SSE SNAPSHOT size={}", snapshot.size());
         for (SseEmitter emitter : emitters) {
             try {
                 emitter.send(SseEmitter.event()

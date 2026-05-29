@@ -37,8 +37,7 @@ public class SizeBasedPackagingJob implements Job {
         long threshold = maxMb * 1024L * 1024L;
 
         if (totalSize >= threshold) {
-            log.info(
-                    "AUTO PACKAGE TRIGGERED BY SIZE totalSize={} threshold={}", totalSize, threshold );
+            log.info("AUTO PACKAGE TRIGGERED BY SIZE totalSize={} threshold={}", totalSize, threshold );
             packagingService.createLatestOrAutoPackage("AUTO_SIZE");
         }
     }
