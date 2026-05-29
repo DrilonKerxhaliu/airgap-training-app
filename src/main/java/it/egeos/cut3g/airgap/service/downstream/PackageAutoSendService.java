@@ -1,8 +1,12 @@
 package it.egeos.cut3g.airgap.service.downstream;
 
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
+import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
+import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
+import it.egeos.cut3g.airgap.service.files.TransactionService;
+import it.egeos.cut3g.airgap.service.files.TransferProtocolService;
 import it.egeos.cut3g.airgap.service.util.RuntimeConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -22,7 +28,7 @@ public class PackageAutoSendService {
 
     private static final Logger log = LoggerFactory.getLogger(PackageAutoSendService.class);
 
-    private static final long AUTO_SEND_DELAY_MS = 10_000;
+    private static final long AUTO_SEND_DELAY_MS = Duration.ofSeconds(10).toMillis();
     private static final String AUTO_USERNAME = "AUTO";
 
     @Autowired
@@ -32,7 +38,10 @@ public class PackageAutoSendService {
     private PackageRepository packageRepository;
 
     @Autowired
-    private DownstreamService downstreamService;
+    private TransferProtocolService protocolService;
+
+    @Autowired
+    private TransactionService transactionService;
 
     @Async
     public void autoSendAsync(String packageId) {
@@ -56,40 +65,81 @@ public class PackageAutoSendService {
 
         runtimeConfigService.reload();
 
-        boolean autoMode = runtimeConfigService.isAutoModeEnabled();
-
-        if (!autoMode) {
-            log.info("AUTO MODE DISABLED -> skip send packageId={}", packageId);
+        if (!runtimeConfigService.isAutoModeEnabled()) {
             return;
         }
 
         PackageEntity pkg = packageRepository.findById(packageId)
-                .orElseThrow(() -> new IllegalStateException("Package not found: " + packageId));
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "Package not found: " + packageId));
 
         if (pkg.getState() == PackageState.SENT) {
-            log.info("Package already SENT -> {}", pkg.getPackageName());
             return;
         }
 
         if (pkg.getState() != PackageState.CREATED
                 && pkg.getState() != PackageState.NEW) {
-
-            log.warn("Package state not eligible for auto send: {} state={}",
-                    pkg.getPackageName(),
-                    pkg.getState());
             return;
         }
 
-        Path packagePath = Paths.get(pkg.getPackagePath()).toAbsolutePath().normalize();
+        Path packagePath =
+                Paths.get(pkg.getPackagePath())
+                        .toAbsolutePath()
+                        .normalize();
 
         if (!Files.exists(packagePath)) {
-            throw new IllegalStateException("Package file not found: " + packagePath);
+            throw new IllegalStateException(
+                    "Package file not found: " + packagePath);
         }
 
-        log.info("AUTO SEND START package={}", pkg.getPackageName());
+        log.info(
+                "AUTO SEND START package={}",
+                pkg.getPackageName()
+        );
 
-        downstreamService.sendPackages(List.of(packageId), AUTO_USERNAME);
+        pkg.setState(PackageState.PROCESSING);
+        packageRepository.save(pkg);
 
-        log.info("AUTO SEND SUCCESS package={}", pkg.getPackageName());
+        TransactionEntity tx =
+                transactionService.startTransaction(
+                        pkg.getId(),
+                        Direction.DOWNSTREAM,
+                        AUTO_USERNAME
+                );
+
+        try {
+
+            protocolService.sendPackage(packagePath, pkg);
+
+            pkg.setState(PackageState.SENT);
+            pkg.setExportedAt(Instant.now());
+
+            packageRepository.save(pkg);
+
+            transactionService.closeSuccess(
+                    tx.getId(),
+                    "SUCCESS: Package transferred automatically"
+            );
+
+            log.info(
+                    "AUTO SEND SUCCESS package={}",
+                    pkg.getPackageName()
+            );
+
+        } catch (Exception ex) {
+
+            pkg.setState(PackageState.FAILED);
+
+            packageRepository.save(pkg);
+
+            transactionService.closeFailure(
+                    tx.getId(),
+                    "FAILED: Transfer error - " + ex.getMessage(),
+                    AUTO_USERNAME
+            );
+
+            throw ex;
+        }
     }
 }
