@@ -28,10 +28,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.io.OutputStream;
+import java.nio.file.*;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -173,10 +171,24 @@ public class UploadService {
         log.info("STREAM UPLOAD START file={} target={}", filename, targetPath);
 
         long totalBytes = 0;
+        long nextLogBytes = 100L * 1024 * 1024; // 100 MB
 
-        try (InputStream in = inputStream; java.io.OutputStream out = Files.newOutputStream(targetPath, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
+        try (InputStream in = inputStream; OutputStream out = Files.newOutputStream(targetPath, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
 
-            byte[] buffer = new byte[1024 * 1024];
+            log.info("STREAM ABOUT TO READ FIRST BYTE");
+
+            int firstByte = in.read();
+
+            log.info("STREAM FIRST BYTE RECEIVED={}", firstByte);
+
+            if (firstByte == -1) {
+                throw new IOException("Empty stream");
+            }
+
+            out.write(firstByte);
+            totalBytes++;
+
+            byte[] buffer = new byte[1024 * 1024]; // 1 MB
 
             int read;
 
@@ -186,11 +198,15 @@ public class UploadService {
 
                 totalBytes += read;
 
-                if (totalBytes % (100L * 1024 * 1024) == 0) {
+                if (totalBytes >= nextLogBytes) {
 
                     log.info("STREAM UPLOAD PROGRESS file={} mb={}", filename, totalBytes / 1024 / 1024);
+
+                    nextLogBytes += (100L * 1024 * 1024);
                 }
             }
+
+            out.flush();
         }
 
         log.info("STREAM UPLOAD COMPLETE file={} sizeBytes={}", filename, totalBytes);
