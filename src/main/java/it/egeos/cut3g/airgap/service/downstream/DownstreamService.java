@@ -76,11 +76,8 @@ public class DownstreamService {
     public PackageContentResponse tarContent(String packageId) {
         PackageEntity pkg = packageRepository.findById(packageId)
                 .orElseThrow(() -> new PackageNotFoundException(packageId));
-
+        validatePackageAvailability(pkg);
         Path tarPath = Paths.get(pkg.getPackagePath());
-        if (!Files.exists(tarPath)) {
-            throw new PackageFileNotFoundException(tarPath.toString());
-        }
 
         try {
             List<FileContentDto> files = tarListingService.listFilesFromSubTars(tarPath);
@@ -106,6 +103,7 @@ public class DownstreamService {
         PackageEntity pkg = packageRepository.findById(packageId)
                 .orElseThrow(() -> new PackageNotFoundException(packageId));
 
+        validatePackageAvailability(pkg);
         Path tarPath = Paths.get(pkg.getPackagePath());
         TransactionEntity tx = transactionService.startTransaction(pkg.getId(), Direction.DOWNSTREAM, username);
         try {
@@ -113,7 +111,7 @@ public class DownstreamService {
             transactionService.closeSuccess(tx.getId(), "SUCCESS: Downloaded successfully");
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename= " + pkg.getPackageName())
+                            "attachment; filename=\"" + pkg.getPackageName() + "\"")
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .contentLength(Files.size(tarPath))
                     .body(new FileSystemResource(tarPath));
@@ -171,6 +169,8 @@ public class DownstreamService {
 
             PackageEntity pkg = packageRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Package not found: " + id));
+
+            validatePackageAvailability(pkg);
 
             pkg.setState(PackageState.PROCESSING);
 
@@ -254,5 +254,46 @@ public class DownstreamService {
             transactionService.closeFailure(tx.getId(), "FAILED: Transfer error - " + ex.getMessage(), username);
         }
         packageRepository.save(pkg);
+    }
+
+    private void  validatePackageAvailability(PackageEntity pkg) {
+
+        if (pkg.getPackagePath() == null ||
+                pkg.getPackagePath().isBlank()) {
+
+            log.warn(
+                    "Package path missing for package={}",
+                    pkg.getPackageName()
+            );
+
+            pkg.setState(PackageState.DELETED);
+
+            packageRepository.save(pkg);
+
+            throw new PackageFileNotFoundException(
+                    pkg.getPackagePath()
+            );
+        }
+
+        Path packagePath = Paths.get(pkg.getPackagePath())
+                .toAbsolutePath()
+                .normalize();
+
+        if (!Files.exists(packagePath)) {
+
+            log.warn(
+                    "Package file missing -> package={} path={}",
+                    pkg.getPackageName(),
+                    packagePath
+            );
+
+            pkg.setState(PackageState.DELETED);
+
+            packageRepository.save(pkg);
+
+            throw new PackageFileNotFoundException(
+                    pkg.getPackagePath()
+            );
+        }
     }
 }

@@ -58,7 +58,7 @@ public class FtpTransferService {
                 remotePath = "/";
             }
 
-            String targetFile = remotePath + "/" + pkg.getPackageName() + ".tar";
+            String targetFile = remotePath + "/" + pkg.getPackageName();
 
             try (FileInputStream fis = new FileInputStream(pkg.getPackagePath())) {
 
