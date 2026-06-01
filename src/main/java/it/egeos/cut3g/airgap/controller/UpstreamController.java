@@ -67,6 +67,10 @@ public class UpstreamController {
             @RequestParam(value = "username", required = false) String username,
             @RequestParam(value = "contingency", defaultValue = "false") boolean contingency ) throws IOException {
 
+        System.out.println("=== DRAGDROP ENTERED ===");
+        System.out.println("file=" + zipFile.getOriginalFilename());
+        System.out.println("size=" + zipFile.getSize());
+
         UploadPackageEntity pkg = uploadService.dragAndDrop(zipFile, username, contingency);
 
         return ResponseEntity.ok(
