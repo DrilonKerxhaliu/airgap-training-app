@@ -175,11 +175,7 @@ public class UploadService {
 
         try (InputStream in = inputStream; OutputStream out = Files.newOutputStream(targetPath, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
 
-            log.info("STREAM ABOUT TO READ FIRST BYTE");
-
             int firstByte = in.read();
-
-            log.info("STREAM FIRST BYTE RECEIVED={}", firstByte);
 
             if (firstByte == -1) {
                 throw new IOException("Empty stream");
