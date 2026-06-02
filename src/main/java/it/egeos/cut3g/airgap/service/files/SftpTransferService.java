@@ -55,7 +55,7 @@ public class SftpTransferService {
 
             createDirectoriesIfNeeded(sftp, remotePath);
 
-            String targetFile = remotePath + "/" + pkg.getPackageName() + ".tar";
+            String targetFile = remotePath + "/" + pkg.getPackageName();
 
             try (FileInputStream fis = new FileInputStream(pkg.getPackagePath())) {
 

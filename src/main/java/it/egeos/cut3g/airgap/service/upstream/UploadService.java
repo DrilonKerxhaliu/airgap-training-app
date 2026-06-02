@@ -27,10 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.*;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -81,20 +80,22 @@ public class UploadService {
         Files.createDirectories(uploadedRoot);
         String originalFilename = zipFile.getOriginalFilename();
 
-        if (originalFilename == null || !originalFilename.endsWith(".tar"))
-
-        { throw new IllegalArgumentException("Only .tar files are allowed"); }
+        if (originalFilename == null || !originalFilename.endsWith(".tar")) {
+            throw new IllegalArgumentException("Only .tar files are allowed");
+        }
 
         Path targetPath = uploadedRoot.resolve(originalFilename).normalize();
 
-        if (!targetPath.startsWith(uploadedRoot))
-        { throw new SecurityException("Invalid path"); }
+        if (!targetPath.startsWith(uploadedRoot)) {
+            throw new SecurityException("Invalid path");
+        }
 
         log.info("UPLOAD (MULTIPART) saving file={} to={}", originalFilename, targetPath);
         zipFile.transferTo(targetPath);
         log.info("UPLOAD (MULTIPART) saved file={}, starting import", originalFilename);
 
-        return incomingPackageImportService.importUploadedPackage(targetPath, username, contingency); }
+        return incomingPackageImportService.importUploadedPackage(targetPath, username, contingency);
+    }
 
     public UpstreamStatusResponse status() {
         UpstreamStatusResponse out = new UpstreamStatusResponse();
@@ -104,8 +105,7 @@ public class UploadService {
         List<UploadPackageEntity> received = uploadPackageRepository.findByStatus(UploadPackageStatus.RECEIVED);
         out.readyForUploadCount = received.size();
 
-        Optional<UploadPackageEntity> last = uploadPackageRepository.findAll().stream()
-                .max((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()));
+        Optional<UploadPackageEntity> last = uploadPackageRepository.findAll().stream().max((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()));
 
         last.ifPresent(pkg -> {
             out.lastPackageId = pkg.getId();
@@ -122,16 +122,15 @@ public class UploadService {
     }
 
     public PackageContentResponse tarContent(String packageId) {
-        UploadPackageEntity pkg = uploadPackageRepository.findById(packageId)
-                .orElseThrow(() -> new PackageNotFoundException(packageId));
+        UploadPackageEntity pkg = uploadPackageRepository.findById(packageId).orElseThrow(() -> new PackageNotFoundException(packageId));
 
         Path tarPath = null;
-        if(pkg.getArchivedTarPath() != null) {
+        if (pkg.getArchivedTarPath() != null) {
             tarPath = Paths.get(pkg.getArchivedTarPath());
             if (!Files.exists(tarPath)) {
                 throw new PackageFileNotFoundException(tarPath.toString());
             }
-        }else {
+        } else {
             tarPath = Paths.get(pkg.getOriginalTarPath());
             if (!Files.exists(tarPath)) {
                 throw new PackageFileNotFoundException(tarPath.toString());
@@ -151,5 +150,63 @@ public class UploadService {
             throw new DownstreamIOException("Unable to extract/read tar content: " + e.getMessage(), e);
 
         }
+    }
+
+    public UploadPackageEntity streamUpload(InputStream inputStream, String filename, String username, boolean contingency) throws IOException {
+
+        Path uploadedRoot = Paths.get(uploadedDir).toAbsolutePath().normalize();
+
+        Files.createDirectories(uploadedRoot);
+
+        if (filename == null || !filename.endsWith(".tar")) {
+            throw new IllegalArgumentException("Only .tar files are allowed");
+        }
+
+        Path targetPath = uploadedRoot.resolve(filename).normalize();
+
+        if (!targetPath.startsWith(uploadedRoot)) {
+            throw new SecurityException("Invalid path");
+        }
+
+        log.info("STREAM UPLOAD START file={} target={}", filename, targetPath);
+
+        long totalBytes = 0;
+        long nextLogBytes = 100L * 1024 * 1024; // 100 MB
+
+        try (InputStream in = inputStream; OutputStream out = Files.newOutputStream(targetPath, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
+
+            int firstByte = in.read();
+
+            if (firstByte == -1) {
+                throw new IOException("Empty stream");
+            }
+
+            out.write(firstByte);
+            totalBytes++;
+
+            byte[] buffer = new byte[1024 * 1024]; // 1 MB
+
+            int read;
+
+            while ((read = in.read(buffer)) != -1) {
+
+                out.write(buffer, 0, read);
+
+                totalBytes += read;
+
+                if (totalBytes >= nextLogBytes) {
+
+                    log.info("STREAM UPLOAD PROGRESS file={} mb={}", filename, totalBytes / 1024 / 1024);
+
+                    nextLogBytes += (100L * 1024 * 1024);
+                }
+            }
+
+            out.flush();
+        }
+
+        log.info("STREAM UPLOAD COMPLETE file={} sizeBytes={}", filename, totalBytes);
+
+        return incomingPackageImportService.importUploadedPackage(targetPath, username, contingency);
     }
 }
