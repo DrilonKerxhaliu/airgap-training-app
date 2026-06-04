@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.persistence.EntityManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -64,6 +65,9 @@ public class UploadService {
 
     @Autowired
     private TransactionService transactionService;
+
+    @Autowired
+    private EntityManager entityManager;
 
     public UploadPackageEntity uploadPackage(String packageName, String username, boolean contingency) {
         Path uploadedRoot = Paths.get(uploadedDir).toAbsolutePath().normalize();
@@ -220,8 +224,23 @@ public class UploadService {
 
             log.info("STREAM UPLOAD COMPLETE file={} sizeBytes={} uploadPackageId={}", filename, totalBytes, uploadPkg.getId());
 
-            return incomingPackageImportService.importUploadedPackage(targetPath, username, contingency, uploadPkg.getId(), tx.getId());
+            UploadPackageEntity result =
+                    incomingPackageImportService.importUploadedPackage(
+                            targetPath,
+                            username,
+                            contingency,
+                            uploadPkg.getId(),
+                            tx.getId());
 
+            uploadPackageRepository.flush();
+
+            entityManager.clear();
+
+            log.warn("FINAL RESULT STATUS={} NOTE={}",
+                    result.getStatus(),
+                    result.getNote());
+
+            return result;
         } catch (Exception ex) {
 
             uploadPkg.setStatus(UploadPackageStatus.FAILED);
