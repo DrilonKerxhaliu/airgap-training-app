@@ -190,6 +190,21 @@ public class PackagingService {
             }
             fileItemRepository.saveAll(activeFiles);
 
+            // remove original files from collection/in
+            for (FileItemEntity f : activeFiles) {
+                try {
+                    Path sourceFile = inRoot.resolve(f.getRelativePath()).normalize();
+
+                    if (Files.exists(sourceFile)) {
+                        Files.delete(sourceFile);
+                        log.info("Deleted packed file {}", sourceFile);
+                    }
+
+                } catch (Exception e) {
+                    log.warn("Unable to delete packed file {}", f.getRelativePath(), e);
+                }
+            }
+
             // REMOVE from SSE snapshot
             List<String> packedIds = activeFiles.stream().map(FileItemEntity::getId).collect(Collectors.toList());
 

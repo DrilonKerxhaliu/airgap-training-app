@@ -2,17 +2,12 @@ package it.egeos.cut3g.airgap.controller;
 
 import it.egeos.cut3g.airgap.api.ApiResponse;
 import it.egeos.cut3g.airgap.api.dto.*;
-import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
-import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
 import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
-import it.egeos.cut3g.airgap.persistence.enums.Direction;
-import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
 import it.egeos.cut3g.airgap.service.downstream.DownstreamService;
 import it.egeos.cut3g.airgap.service.files.ArchiveCleanupService;
-import it.egeos.cut3g.airgap.service.importing.IncomingPackageImportService;
 import it.egeos.cut3g.airgap.service.upstream.UploadService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -59,7 +54,7 @@ public class UpstreamController {
         System.out.println("file=" + zipFile.getOriginalFilename());
         System.out.println("size=" + zipFile.getSize());
 
-        UploadPackageEntity pkg = uploadService.dragAndDrop(zipFile, username, contingency);
+        UploadPackageEntity pkg = uploadService.dragAndDrop(zipFile, "MANUAL", contingency);
 
         return ResponseEntity.ok(java.util.Map.of("uploadPackageId", pkg.getId(), "packageName", pkg.getPackageName(), "status", pkg.getStatus().name(), "fileCount", pkg.getFileCount() != null ? pkg.getFileCount() : 0, "totalSizeBytes", pkg.getTotalSizeBytes() != null ? pkg.getTotalSizeBytes() : 0));
     }
@@ -67,7 +62,7 @@ public class UpstreamController {
     @PostMapping(value = "/package/bigstream", consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public ResponseEntity<?> uploadBigPackageStream(HttpServletRequest request, @RequestHeader("X-Filename") String filename, @RequestParam(value = "username", required = false) String username, @RequestParam(value = "contingency", defaultValue = "false") boolean contingency) throws IOException {
 
-        UploadPackageEntity pkg = uploadService.streamUpload(request.getInputStream(), filename, username, contingency);
+        UploadPackageEntity pkg = uploadService.streamUpload(request.getInputStream(), filename, "MANUAL", contingency);
 
         return ResponseEntity.ok(java.util.Map.of("uploadPackageId", pkg.getId(), "packageName", pkg.getPackageName(), "status", pkg.getStatus().name(), "fileCount", pkg.getFileCount() != null ? pkg.getFileCount() : 0, "totalSizeBytes", pkg.getTotalSizeBytes() != null ? pkg.getTotalSizeBytes() : 0));
     }
@@ -108,7 +103,7 @@ public class UpstreamController {
     @DeleteMapping("/delete/package/{packageId}")
     public ApiResponse<Void> deletePackageManually(@PathVariable String packageId, @RequestParam(value = "username", required = false) String username) {
 
-        archiveCleanupService.manualCleanupArchivedPkg(packageId, username);
+        archiveCleanupService.manualCleanupArchivedPkg(packageId, "MANUAL");
 
         return ApiResponse.ok("Package deleted manually", null);
     }
