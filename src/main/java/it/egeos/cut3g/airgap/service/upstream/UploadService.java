@@ -13,6 +13,7 @@ import it.egeos.cut3g.airgap.persistence.enums.TransactionState;
 import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
 import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.TransactionRepository;
+import it.egeos.cut3g.airgap.persistence.repo.UploadFileRepository;
 import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
 import it.egeos.cut3g.airgap.service.files.TransactionService;
 import it.egeos.cut3g.airgap.service.importing.IncomingPackageImportService;
@@ -28,10 +29,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.io.OutputStream;
+import java.nio.file.*;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -58,7 +57,13 @@ public class UploadService {
     private UploadPackageRepository uploadPackageRepository;
 
     @Autowired
+    private UploadFileRepository uploadFileRepository;
+
+    @Autowired
     private TarListingService tarListingService;
+
+    @Autowired
+    private TransactionService transactionService;
 
     public UploadPackageEntity uploadPackage(String packageName, String username, boolean contingency) {
         Path uploadedRoot = Paths.get(uploadedDir).toAbsolutePath().normalize();
@@ -74,7 +79,7 @@ public class UploadService {
 
         log.info("UPLOAD REQUEST packageName={} path={}", packageName, tarPath);
 
-        return incomingPackageImportService.importUploadedPackage(tarPath, username, contingency);
+        return incomingPackageImportService.importUploadedPackage(tarPath, username, contingency, null, null);
     }
 
     public UploadPackageEntity dragAndDrop(MultipartFile zipFile, String username, boolean contingency) throws IOException {
@@ -96,7 +101,7 @@ public class UploadService {
         zipFile.transferTo(targetPath);
         log.info("UPLOAD (MULTIPART) saved file={}, starting import", originalFilename);
 
-        return incomingPackageImportService.importUploadedPackage(targetPath, username, contingency);
+        return incomingPackageImportService.importUploadedPackage(targetPath, username, contingency, null, null);
     }
 
     public UpstreamStatusResponse status() {
@@ -170,31 +175,104 @@ public class UploadService {
             throw new SecurityException("Invalid path");
         }
 
-        log.info("STREAM UPLOAD START file={} target={}", filename, targetPath);
+        UploadPackageEntity uploadPkg = createProcessingPackage(filename, username);
 
-        long totalBytes = 0;
+        TransactionEntity tx = transactionService.startUploadTransaction(uploadPkg, Direction.UPSTREAM, username);
 
-        try (InputStream in = inputStream; java.io.OutputStream out = Files.newOutputStream(targetPath, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
+        try {
 
-            byte[] buffer = new byte[1024 * 1024];
+            log.info("STREAM UPLOAD START file={} target={} uploadPackageId={}", filename, targetPath, uploadPkg.getId());
 
-            int read;
+            long totalBytes = 0;
+            long nextLogBytes = 100L * 1024 * 1024;
 
-            while ((read = in.read(buffer)) != -1) {
+            try (InputStream in = inputStream; OutputStream out = Files.newOutputStream(targetPath, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
 
-                out.write(buffer, 0, read);
+                byte[] buffer = new byte[1024 * 1024];
+                int read;
 
-                totalBytes += read;
+                while ((read = in.read(buffer)) != -1) {
 
-                if (totalBytes % (100L * 1024 * 1024) == 0) {
+                    out.write(buffer, 0, read);
 
-                    log.info("STREAM UPLOAD PROGRESS file={} mb={}", filename, totalBytes / 1024 / 1024);
+                    totalBytes += read;
+
+                    if (totalBytes >= nextLogBytes) {
+
+                        log.info("STREAM UPLOAD PROGRESS file={} mb={}", filename, totalBytes / 1024 / 1024);
+
+                        nextLogBytes += 100L * 1024 * 1024;
+                    }
                 }
+
+                out.flush();
             }
+
+            if (totalBytes == 0) {
+                throw new IOException("Empty stream");
+            }
+
+            uploadPkg.setOriginalTarPath(targetPath.toString());
+            uploadPkg.setTotalSizeBytes(totalBytes);
+            uploadPkg.setNote("Stream upload completed");
+
+            uploadPkg = uploadPackageRepository.saveAndFlush(uploadPkg);
+
+            log.info("STREAM UPLOAD COMPLETE file={} sizeBytes={} uploadPackageId={}", filename, totalBytes, uploadPkg.getId());
+
+            return incomingPackageImportService.importUploadedPackage(targetPath, username, contingency, uploadPkg.getId(), tx.getId());
+
+        } catch (Exception ex) {
+
+            uploadPkg.setStatus(UploadPackageStatus.FAILED);
+            uploadPkg.setNote(ex.getMessage());
+
+            uploadPackageRepository.saveAndFlush(uploadPkg);
+
+            if (tx != null) {
+                transactionService.closeFailure(tx.getId(), ex.getMessage(), username);
+            }
+
+            log.error("STREAM UPLOAD FAILED file={} uploadPackageId={}", filename, uploadPkg.getId(), ex);
+
+            throw new RuntimeException("Stream upload failed for " + filename + ": " + ex.getMessage(), ex);
+        }
+    }
+
+    public UploadPackageEntity createProcessingPackage(String packageName, String username) {
+        UploadPackageEntity existing = uploadPackageRepository.findByPackageName(packageName).orElse(null);
+
+        if (existing != null) {
+            if (existing.getStatus() != UploadPackageStatus.FAILED && existing.getStatus() != UploadPackageStatus.REJECTED) {
+                throw new IllegalStateException("Package already exists with status " + existing.getStatus() + ": " + packageName);
+            }
+
+            existing.setStatus(UploadPackageStatus.PROCESSING);
+            existing.setNote("Re-upload started");
+            existing.setOriginalTarPath(null);
+            existing.setArchivedTarPath(null);
+            existing.setWorkDirPath(null);
+            existing.setOuterDirPath(null);
+            existing.setDataDirPath(null);
+            existing.setManifestRelativePath(null);
+            existing.setManifestMd5DataTar(null);
+            existing.setImportedAt(null);
+            existing.setArchivedAt(null);
+            existing.setFileCount(null);
+            existing.setTotalSizeBytes(null);
+            existing.setUploadedBy(username != null ? username : "MANUAL");
+
+            uploadFileRepository.deleteByUploadPackageId(existing.getId());
+
+            return uploadPackageRepository.saveAndFlush(existing);
         }
 
-        log.info("STREAM UPLOAD COMPLETE file={} sizeBytes={}", filename, totalBytes);
+        UploadPackageEntity pkg = new UploadPackageEntity();
+        pkg.setPackageName(packageName);
+        pkg.setStatus(UploadPackageStatus.PROCESSING);
+        pkg.setNote("Stream upload started");
+        pkg.setUploadedBy(username != null ? username : "MANUAL");
 
-        return incomingPackageImportService.importUploadedPackage(targetPath, username, contingency);
+        return uploadPackageRepository.saveAndFlush(pkg);
     }
 }

@@ -38,21 +38,19 @@ public class DownstreamController {
     @GetMapping(value = "/package/{packageId}/download", produces = MediaType.ALL_VALUE)
     public ResponseEntity<?> downloadPackage(@PathVariable ("packageId") String packageId,
                                               @RequestParam(value = "username", required = false) String username) {
-        return downstreamService.downloadExistingPackage(packageId, username);
+        return downstreamService.downloadExistingPackage(packageId, "MANUAL");
     }
 
     @GetMapping(value = "/package/latest")
     public ApiResponse<PackageDto> createLatest(@RequestParam(value = "username", required = false) String username) {
-        PackageEntity pkg = downstreamService.generateAndDeliverLatest(username);
+        PackageEntity pkg = downstreamService.generateAndDeliverLatest("MANUAL");
         return ApiResponse.ok("OK", PackageDto.from(pkg));
     }
 
     @PostMapping("/packages/send")
     public ResponseEntity<Void> sendPackages(@RequestBody SendPackagesRequest request,
                                              @RequestParam(value = "username", required = false) String username) {
-
-        downstreamService.sendPackages(request.getPackageIds(), username);
-
+        downstreamService.sendPackages(request.getPackageIds(), "MANUAL");
         return ResponseEntity.accepted().build();
     }
 

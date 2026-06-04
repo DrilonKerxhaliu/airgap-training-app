@@ -74,24 +74,17 @@ public class DownstreamService {
     }
 
     public PackageContentResponse tarContent(String packageId) {
-        PackageEntity pkg = packageRepository.findById(packageId)
-                .orElseThrow(() -> new PackageNotFoundException(packageId));
+        PackageEntity pkg = packageRepository.findById(packageId).orElseThrow(() -> new PackageNotFoundException(packageId));
         validatePackageAvailability(pkg);
-        Path tarPath = Paths.get(pkg.getPackagePath());
 
-        try {
-            List<FileContentDto> files = tarListingService.listFilesFromSubTars(tarPath);
-            PackageContentResponse resp = new PackageContentResponse();
-            resp.packageId = pkg.getId();
-            resp.packageName = pkg.getPackageName();
-            resp.files = files;
+        List<FileContentDto> files = fileItemRepository.findByPackageId(packageId).stream().map(file -> new FileContentDto(file.getRelativePath(), file.getSizeBytes())).collect(Collectors.toList());
 
-            return resp;
+        PackageContentResponse resp = new PackageContentResponse();
+        resp.packageId = pkg.getId();
+        resp.packageName = pkg.getPackageName();
+        resp.files = files;
 
-        } catch (IOException e) {
-            throw new DownstreamIOException("Unable to extract/read tar content: " + e.getMessage(), e);
-
-        }
+        return resp;
     }
 
     public LatestContentResponse getLatestFolderContent() {
