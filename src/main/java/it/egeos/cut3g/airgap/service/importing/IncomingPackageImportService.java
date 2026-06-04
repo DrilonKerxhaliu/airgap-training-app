@@ -77,7 +77,6 @@ public class IncomingPackageImportService {
     @Value("${airgap.archive.packages.dir}")
     private String archiveDir;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public UploadPackageEntity importUploadedPackage(Path tarPath, String username, boolean contingency, String uploadPkgId, String txId) {
 
         Path normalizedTar = tarPath.toAbsolutePath().normalize();
