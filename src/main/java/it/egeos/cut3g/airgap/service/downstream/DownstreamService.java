@@ -6,6 +6,7 @@ import it.egeos.cut3g.airgap.exceptions.PackageFileNotFoundException;
 import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
+import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.FileItemState;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
@@ -71,7 +72,9 @@ public class DownstreamService {
     public List<PackageDto> listReadyForDownload() {
         List<PackageEntity> pkgs = packageRepository.findAll();
         return pkgs.stream()
-            .sorted(Comparator.comparing(PackageEntity::getTransactionStopTime).reversed())
+            .sorted(Comparator.comparing(
+                PackageEntity::getTransactionStopTime, 
+                Comparator.nullsLast(Comparator.reverseOrder())))
             .map(PackageDto::from)
             .collect(Collectors.toList());
     }
