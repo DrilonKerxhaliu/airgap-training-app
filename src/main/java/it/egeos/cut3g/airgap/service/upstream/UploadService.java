@@ -33,6 +33,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.*;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -129,7 +130,10 @@ public class UploadService {
 
     public List<UploadPackageDto> listOfUploadPackages() {
         List<UploadPackageEntity> pkgs = uploadPackageRepository.findAll();
-        return pkgs.stream().map(UploadPackageDto::from).collect(Collectors.toList());
+        return pkgs.stream()
+            .sorted(Comparator.comparing(UploadPackageEntity::getImportedAt).reversed())
+            .map(UploadPackageDto::from)
+            .collect(Collectors.toList());
     }
 
     public PackageContentResponse tarContent(String packageId) {
@@ -275,7 +279,7 @@ public class UploadService {
             existing.setDataDirPath(null);
             existing.setManifestRelativePath(null);
             existing.setManifestMd5DataTar(null);
-            existing.setImportedAt(null);
+            existing.setImportedAt(Instant.now());
             existing.setArchivedAt(null);
             existing.setFileCount(null);
             existing.setTotalSizeBytes(null);
@@ -290,6 +294,7 @@ public class UploadService {
         pkg.setPackageName(packageName);
         pkg.setStatus(UploadPackageStatus.PROCESSING);
         pkg.setNote("Stream upload started");
+        pkg.setImportedAt(Instant.now());
         pkg.setUploadedBy(username != null ? username : "MANUAL");
 
         return uploadPackageRepository.saveAndFlush(pkg);

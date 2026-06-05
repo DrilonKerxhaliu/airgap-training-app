@@ -108,7 +108,7 @@ public class IncomingPackageImportService {
                     uploadFileRepository.deleteByUploadPackageId(uploadPkg.getId());
                     uploadFileRepository.flush();
 
-                    uploadPkg.setImportedAt(null);
+                    uploadPkg.setImportedAt(Instant.now());
                     uploadPkg.setArchivedAt(null);
                     uploadPkg.setArchivedTarPath(null);
                     uploadPkg.setWorkDirPath(null);

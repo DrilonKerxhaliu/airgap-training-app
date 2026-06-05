@@ -70,7 +70,10 @@ public class DownstreamService {
 
     public List<PackageDto> listReadyForDownload() {
         List<PackageEntity> pkgs = packageRepository.findAll();
-        return pkgs.stream().map(PackageDto::from).collect(Collectors.toList());
+        return pkgs.stream()
+            .sorted(Comparator.comparing(PackageEntity::getTransactionStopTime).reversed())
+            .map(PackageDto::from)
+            .collect(Collectors.toList());
     }
 
     public PackageContentResponse tarContent(String packageId) {
