@@ -32,10 +32,29 @@ public class UploadSequenceService {
             );
         }
 
-        // reserve immediately
         seq.setLastSequenceIndex(incomingSequence);
         seq.setUpdatedAt(Instant.now());
+        repository.save(seq);
+    }
 
+    @Transactional
+    public void reserveContingency(long incomingSequence) {
+        UploadSequenceEntity seq = repository.findByIdForUpdate(1L)
+                .orElseThrow(() -> new IllegalStateException("Upload sequence row id=1 not found"));
+
+        long current = seq.getLastSequenceIndex();
+
+        if (incomingSequence <= current) {
+            throw new SequenceMismatchException(
+                    "Package rejected in contingency mode. Current sequence is "
+                            + String.format("%06d", current)
+                            + " but received old package "
+                            + String.format("%06d", incomingSequence)
+            );
+        }
+
+        seq.setLastSequenceIndex(incomingSequence);
+        seq.setUpdatedAt(Instant.now());
         repository.save(seq);
     }
 }

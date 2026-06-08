@@ -119,6 +119,7 @@ public class IncomingPackageImportService {
                     uploadPkg.setManifestRelativePath(null);
                     uploadPkg.setManifestMd5DataTar(null);
                     uploadPkg.setOriginalTarPath(normalizedTar.toString());
+                    uploadPkg.setSequenceIndex(null);
                     uploadPkg.setUploadedBy(username != null ? username : "MANUAL");
                     uploadPkg.setStatus(UploadPackageStatus.PROCESSING);
                     uploadPkg.setNote("Reprocessing package started");
@@ -157,20 +158,21 @@ public class IncomingPackageImportService {
                 uploadPkg.setStatus(UploadPackageStatus.RECEIVED);
                 uploadPkg.setNote("Package received after sequence validation");
             } else {
-                log.warn("CONTINGENCY MODE ENABLED → skipping sequence validation for package={}", packageName);
+                uploadSequenceService.reserveContingency(sequence);
+                uploadPkg.setSequenceIndex(sequence);
                 uploadPkg.setStatus(UploadPackageStatus.RECEIVED);
-                uploadPkg.setNote("Package received, sequence validation skipped by contingency mode");
+                uploadPkg.setNote("Package received after contingency sequence validation");
             }
 
             uploadPkg = uploadNewPackageService.saveNewPackage(uploadPkg);
 
             Files.createDirectories(workDir);
 
-            if (!contingency) {
-                uploadPkg.setStatus(UploadPackageStatus.SEQUENCE_VALIDATED);
-                uploadPkg.setNote("Sequence validated successfully");
-                uploadPkg = uploadNewPackageService.saveNewPackage(uploadPkg);
-            }
+            uploadPkg.setStatus(UploadPackageStatus.SEQUENCE_VALIDATED);
+            uploadPkg.setNote(contingency
+                    ? "Sequence validated successfully in contingency mode"
+                    : "Sequence validated successfully");
+            uploadPkg = uploadNewPackageService.saveNewPackage(uploadPkg);
 
             uploadPkg.setStatus(UploadPackageStatus.UNPACKING);
             uploadPkg.setNote("Unpacking package");

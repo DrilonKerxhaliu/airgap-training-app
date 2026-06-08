@@ -13,6 +13,8 @@ public interface UploadFileRepository
         extends JpaRepository<UploadFileEntity, String> {
     List<UploadFileEntity> findByUploadPackageId(String uploadPackageId);
 
+    List<UploadFileEntity> findByUploadPackageIdOrderByRelativePathAsc(String uploadPackageId);
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     void deleteByUploadPackageId(String uploadPackageId);
 }

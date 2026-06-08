@@ -140,34 +140,24 @@ public class UploadService {
     }
 
     public PackageContentResponse tarContent(String packageId) {
-        UploadPackageEntity pkg = uploadPackageRepository.findById(packageId).orElseThrow(() -> new PackageNotFoundException(packageId));
+            UploadPackageEntity pkg = uploadPackageRepository.findById(packageId)
+                    .orElseThrow(() -> new PackageNotFoundException(packageId));
 
-        Path tarPath = null;
-        if (pkg.getArchivedTarPath() != null) {
-            tarPath = Paths.get(pkg.getArchivedTarPath());
-            if (!Files.exists(tarPath)) {
-                throw new PackageFileNotFoundException(tarPath.toString());
-            }
-        } else {
-            tarPath = Paths.get(pkg.getOriginalTarPath());
-            if (!Files.exists(tarPath)) {
-                throw new PackageFileNotFoundException(tarPath.toString());
-            }
-        }
+            List<FileContentDto> files = uploadFileRepository
+                    .findByUploadPackageIdOrderByRelativePathAsc(packageId)
+                    .stream()
+                    .map(f -> new FileContentDto(
+                            f.getRelativePath().startsWith("/") ? f.getRelativePath() : "/" + f.getRelativePath(),
+                            f.getSizeBytes()
+                    ))
+                    .collect(Collectors.toList());
 
-        try {
-            List<FileContentDto> files = tarListingService.listFilesFromSubTars(tarPath);
             PackageContentResponse resp = new PackageContentResponse();
             resp.packageId = pkg.getId();
             resp.packageName = pkg.getPackageName();
             resp.files = files;
 
             return resp;
-
-        } catch (IOException e) {
-            throw new DownstreamIOException("Unable to extract/read tar content: " + e.getMessage(), e);
-
-        }
     }
 
     public UploadPackageEntity streamUpload(InputStream inputStream, String filename, String username, boolean contingency) throws IOException {
@@ -282,8 +272,9 @@ public class UploadService {
             existing.setDataDirPath(null);
             existing.setManifestRelativePath(null);
             existing.setManifestMd5DataTar(null);
-            existing.setImportedAt(Instant.now());
+            existing.setImportedAt(null);
             existing.setArchivedAt(null);
+            existing.setSequenceIndex(null);
             existing.setFileCount(null);
             existing.setTotalSizeBytes(null);
             existing.setUploadedBy(username != null ? username : "MANUAL");
@@ -297,7 +288,6 @@ public class UploadService {
         pkg.setPackageName(packageName);
         pkg.setStatus(UploadPackageStatus.PROCESSING);
         pkg.setNote("Stream upload started");
-        pkg.setImportedAt(Instant.now());
         pkg.setUploadedBy(username != null ? username : "MANUAL");
 
         return uploadPackageRepository.saveAndFlush(pkg);
