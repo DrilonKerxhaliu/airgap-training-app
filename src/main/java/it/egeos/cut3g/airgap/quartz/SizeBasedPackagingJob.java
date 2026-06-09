@@ -20,7 +20,6 @@ public class SizeBasedPackagingJob implements Job {
 
     private static final Logger log = LoggerFactory.getLogger(AutoPackagingJob.class);
 
-
     @Value("${airgap.auto.max-mb}")
     private long maxMb;
 
@@ -50,6 +49,8 @@ public class SizeBasedPackagingJob implements Job {
         if (totalSize >= threshold) {
             log.info("AUTO PACKAGE TRIGGERED BY SIZE totalSize={} threshold={}", totalSize, threshold );
             packagingService.createLatestOrAutoPackage("AUTO_SIZE");
+        } else {
+            log.info("Size-based packaging not triggered, totalSize={} threshold={}", totalSize, threshold);
         }
     }
 }
