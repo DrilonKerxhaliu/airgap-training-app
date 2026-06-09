@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 @DisallowConcurrentExecution
 public class AutoPackagingJob implements Job {
 
-    private static final Logger log = LoggerFactory.getLogger(SizeBasedPackagingJob.class);
+    private static final Logger log = LoggerFactory.getLogger(AutoPackagingJob.class);
 
     @Autowired
     private PackagingService packagingService;
@@ -30,13 +30,16 @@ public class AutoPackagingJob implements Job {
 
     @Override
     public void execute(JobExecutionContext context) {
+        log.info("AutoPackagingJob executed");
 
         if (!configService.isAutoModeEnabled()) {
+            log.info("Auto mode is disabled, skipping time-based packaging");
             return;
         }
 
         long newCount = fileItemRepository.countByState(FileItemState.NEW);
         if (newCount == 0) {
+            log.info("No new file items found, skipping time-based packaging");
             return;
         }
         log.info("AUTO PACKAGE TRIGGERED BY TIME");

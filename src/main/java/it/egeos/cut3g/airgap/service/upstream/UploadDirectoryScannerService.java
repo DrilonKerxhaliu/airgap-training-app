@@ -2,6 +2,9 @@ package it.egeos.cut3g.airgap.service.upstream;
 
 import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.UploadSequenceRepository;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -14,6 +17,8 @@ import java.util.regex.Pattern;
 
 @Service
 public class UploadDirectoryScannerService {
+
+    private static final Logger log = LoggerFactory.getLogger(UploadDirectoryScannerService.class);
 
     @Value("${airgap.uploaded.packages.dir}")
     private String uploadedDir;
@@ -51,7 +56,14 @@ public class UploadDirectoryScannerService {
         Matcher m = PKG_PATTERN.matcher(name);
         if (m.matches()) {
             long seq = Long.parseLong(m.group(1));
-            return seq == expected;
+            log.info("Found package with sequence: {}", seq);
+            if (seq == expected) {
+                log.info("Found package with expected sequence: {}", seq);
+                return seq == expected;
+            } else {
+                log.info("Package sequence {} does not match expected {}", seq, expected);
+                return false;
+            }
         }
         return false;
     }

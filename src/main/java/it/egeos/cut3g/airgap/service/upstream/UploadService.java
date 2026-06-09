@@ -272,7 +272,7 @@ public class UploadService {
             existing.setDataDirPath(null);
             existing.setManifestRelativePath(null);
             existing.setManifestMd5DataTar(null);
-            existing.setImportedAt(null);
+            existing.setImportedAt(Instant.now());
             existing.setArchivedAt(null);
             existing.setSequenceIndex(null);
             existing.setFileCount(null);
@@ -288,6 +288,7 @@ public class UploadService {
         pkg.setPackageName(packageName);
         pkg.setStatus(UploadPackageStatus.PROCESSING);
         pkg.setNote("Stream upload started");
+        pkg.setImportedAt(Instant.now());
         pkg.setUploadedBy(username != null ? username : "MANUAL");
 
         return uploadPackageRepository.saveAndFlush(pkg);
