@@ -81,6 +81,7 @@ public class DownstreamService {
 
     public PackageContentResponse tarContent(String packageId) {
         PackageEntity pkg = packageRepository.findById(packageId).orElseThrow(() -> new PackageNotFoundException(packageId));
+        checkPackageAvailability(pkg);
 
         List<FileContentDto> files = fileItemRepository.findByPackageId(packageId).stream().map(file -> new FileContentDto(file.getRelativePath(), file.getSizeBytes())).collect(Collectors.toList());
 
@@ -252,6 +253,40 @@ public class DownstreamService {
             transactionService.closeFailure(tx.getId(), "FAILED: Transfer error - " + ex.getMessage(), username);
         }
         packageRepository.save(pkg);
+    }
+
+    private void  checkPackageAvailability(PackageEntity pkg) {
+
+        if (pkg.getPackagePath() == null ||
+                pkg.getPackagePath().isBlank()) {
+
+            log.warn(
+                    "Package path missing for package={}",
+                    pkg.getPackageName()
+            );
+
+            pkg.setState(PackageState.DELETED);
+
+            packageRepository.save(pkg);
+        }
+
+        Path packagePath = Paths.get(pkg.getPackagePath())
+                .toAbsolutePath()
+                .normalize();
+
+        if (!Files.exists(packagePath)) {
+
+            log.warn(
+                    "Package file missing -> package={} path={}",
+                    pkg.getPackageName(),
+                    packagePath
+            );
+
+            pkg.setState(PackageState.DELETED);
+
+            packageRepository.save(pkg);
+
+        }
     }
 
     private void  validatePackageAvailability(PackageEntity pkg) {
