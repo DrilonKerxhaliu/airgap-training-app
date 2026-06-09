@@ -312,7 +312,7 @@ public class UploadService {
     public long validateOnly(String packageName, boolean contingency) {
         long incomingSequence = extractSequence(packageName);
 
-        UploadSequenceEntity seq = uploadSequenceRepository.findByIdForUpdate(1L)
+        UploadSequenceEntity seq = uploadSequenceRepository.findById(1L)
                 .orElseThrow(() -> new IllegalStateException("Upload sequence row id=1 not found"));
 
         long current = seq.getLastSequenceIndex();
