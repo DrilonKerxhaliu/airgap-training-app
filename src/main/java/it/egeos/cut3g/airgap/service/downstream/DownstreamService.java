@@ -81,7 +81,6 @@ public class DownstreamService {
 
     public PackageContentResponse tarContent(String packageId) {
         PackageEntity pkg = packageRepository.findById(packageId).orElseThrow(() -> new PackageNotFoundException(packageId));
-        validatePackageAvailability(pkg);
 
         List<FileContentDto> files = fileItemRepository.findByPackageId(packageId).stream().map(file -> new FileContentDto(file.getRelativePath(), file.getSizeBytes())).collect(Collectors.toList());
 
