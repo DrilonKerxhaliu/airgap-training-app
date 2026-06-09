@@ -4,17 +4,16 @@ import it.egeos.cut3g.airgap.api.dto.*;
 import it.egeos.cut3g.airgap.exceptions.DownstreamIOException;
 import it.egeos.cut3g.airgap.exceptions.PackageFileNotFoundException;
 import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
+import it.egeos.cut3g.airgap.exceptions.SequenceMismatchException;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
 import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
+import it.egeos.cut3g.airgap.persistence.entity.UploadSequenceEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.enums.TransactionState;
 import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
-import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
-import it.egeos.cut3g.airgap.persistence.repo.TransactionRepository;
-import it.egeos.cut3g.airgap.persistence.repo.UploadFileRepository;
-import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
+import it.egeos.cut3g.airgap.persistence.repo.*;
 import it.egeos.cut3g.airgap.service.files.TransactionService;
 import it.egeos.cut3g.airgap.service.importing.IncomingPackageImportService;
 import it.egeos.cut3g.airgap.service.tar.TarListingService;
@@ -37,6 +36,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static it.egeos.cut3g.airgap.service.util.PackageNameParser.extractSequence;
 
 @Service
 public class UploadService {
@@ -62,7 +63,7 @@ public class UploadService {
     private UploadFileRepository uploadFileRepository;
 
     @Autowired
-    private TarListingService tarListingService;
+    private UploadSequenceRepository uploadSequenceRepository;
 
     @Autowired
     private TransactionService transactionService;
@@ -178,6 +179,20 @@ public class UploadService {
 
         UploadPackageEntity uploadPkg = createProcessingPackage(filename, username);
 
+        try {
+            long sequence = validateOnly(filename, contingency);
+
+            uploadPkg.setSequenceIndex(sequence);
+            uploadPkg.setNote("Sequence pre-check passed");
+            uploadPkg = uploadPackageRepository.saveAndFlush(uploadPkg);
+
+        } catch (Exception ex) {
+            uploadPkg.setStatus(UploadPackageStatus.FAILED);
+            uploadPkg.setNote(ex.getMessage());
+            uploadPackageRepository.saveAndFlush(uploadPkg);
+            throw ex;
+        }
+
         TransactionEntity tx = transactionService.startUploadTransaction(uploadPkg, Direction.UPSTREAM, username);
 
         try {
@@ -292,5 +307,35 @@ public class UploadService {
         pkg.setUploadedBy(username != null ? username : "MANUAL");
 
         return uploadPackageRepository.saveAndFlush(pkg);
+    }
+
+    public long validateOnly(String packageName, boolean contingency) {
+        long incomingSequence = extractSequence(packageName);
+
+        UploadSequenceEntity seq = uploadSequenceRepository.findByIdForUpdate(1L)
+                .orElseThrow(() -> new IllegalStateException("Upload sequence row id=1 not found"));
+
+        long current = seq.getLastSequenceIndex();
+        long expected = current + 1;
+
+        if (!contingency && incomingSequence != expected) {
+            throw new SequenceMismatchException(
+                    "Package rejected. Expected sequence "
+                            + String.format("%06d", expected)
+                            + " but received "
+                            + String.format("%06d", incomingSequence)
+            );
+        }
+
+        if (contingency && incomingSequence <= current) {
+            throw new SequenceMismatchException(
+                    "Package rejected in contingency mode. Current sequence is "
+                            + String.format("%06d", current)
+                            + " but received old package "
+                            + String.format("%06d", incomingSequence)
+            );
+        }
+
+        return incomingSequence;
     }
 }
