@@ -300,6 +300,8 @@ public class DownstreamService {
             );
 
             pkg.setState(PackageState.DELETED);
+            pkg.setNotes("Package path missing for package={}"+
+                    pkg.getPackageName());
 
             packageRepository.save(pkg);
 
@@ -321,6 +323,8 @@ public class DownstreamService {
             );
 
             pkg.setState(PackageState.DELETED);
+            pkg.setNotes("Package path missing for package={}"+
+                    pkg.getPackageName());
 
             packageRepository.save(pkg);
 
