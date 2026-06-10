@@ -314,11 +314,17 @@ public class UploadService {
 
         UploadSequenceEntity seq = uploadSequenceRepository.findById(1L)
                 .orElseThrow(() -> new IllegalStateException("Upload sequence row id=1 not found"));
-
         long current = seq.getLastSequenceIndex();
         long expected = current + 1;
 
+        log.info("VALIDATE START file={} seq={}", packageName, seq.getId());
+
         if (!contingency && incomingSequence != expected) {
+            log.error("Package rejected. Expected sequence "
+                    + String.format("%06d", expected)
+                    + " but received "
+                    + String.format("%06d", incomingSequence));
+
             throw new SequenceMismatchException(
                     "Package rejected. Expected sequence "
                             + String.format("%06d", expected)
@@ -328,6 +334,11 @@ public class UploadService {
         }
 
         if (contingency && incomingSequence <= current) {
+            log.error ("Package rejected in contingency mode. Current sequence is "
+                    + String.format("%06d", current)
+                    + " but received old package "
+                    + String.format("%06d", incomingSequence));
+
             throw new SequenceMismatchException(
                     "Package rejected in contingency mode. Current sequence is "
                             + String.format("%06d", current)
