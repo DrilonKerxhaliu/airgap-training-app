@@ -4,17 +4,16 @@ import it.egeos.cut3g.airgap.api.dto.*;
 import it.egeos.cut3g.airgap.exceptions.DownstreamIOException;
 import it.egeos.cut3g.airgap.exceptions.PackageFileNotFoundException;
 import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
+import it.egeos.cut3g.airgap.exceptions.SequenceMismatchException;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
 import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
+import it.egeos.cut3g.airgap.persistence.entity.UploadSequenceEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.enums.TransactionState;
 import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
-import it.egeos.cut3g.airgap.persistence.repo.PackageRepository;
-import it.egeos.cut3g.airgap.persistence.repo.TransactionRepository;
-import it.egeos.cut3g.airgap.persistence.repo.UploadFileRepository;
-import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
+import it.egeos.cut3g.airgap.persistence.repo.*;
 import it.egeos.cut3g.airgap.service.files.TransactionService;
 import it.egeos.cut3g.airgap.service.importing.IncomingPackageImportService;
 import it.egeos.cut3g.airgap.service.tar.TarListingService;
@@ -33,9 +32,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.*;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static it.egeos.cut3g.airgap.service.util.PackageNameParser.extractSequence;
 
 @Service
 public class UploadService {
@@ -61,7 +63,7 @@ public class UploadService {
     private UploadFileRepository uploadFileRepository;
 
     @Autowired
-    private TarListingService tarListingService;
+    private UploadSequenceRepository uploadSequenceRepository;
 
     @Autowired
     private TransactionService transactionService;
@@ -129,38 +131,34 @@ public class UploadService {
 
     public List<UploadPackageDto> listOfUploadPackages() {
         List<UploadPackageEntity> pkgs = uploadPackageRepository.findAll();
-        return pkgs.stream().map(UploadPackageDto::from).collect(Collectors.toList());
+        return pkgs.stream()
+            .sorted(Comparator.comparing(
+                    UploadPackageEntity::getCreatedAt,
+                    Comparator.nullsLast(Comparator.reverseOrder())
+            ))
+            .map(UploadPackageDto::from)
+            .collect(Collectors.toList());
     }
 
     public PackageContentResponse tarContent(String packageId) {
-        UploadPackageEntity pkg = uploadPackageRepository.findById(packageId).orElseThrow(() -> new PackageNotFoundException(packageId));
+            UploadPackageEntity pkg = uploadPackageRepository.findById(packageId)
+                    .orElseThrow(() -> new PackageNotFoundException(packageId));
 
-        Path tarPath = null;
-        if (pkg.getArchivedTarPath() != null) {
-            tarPath = Paths.get(pkg.getArchivedTarPath());
-            if (!Files.exists(tarPath)) {
-                throw new PackageFileNotFoundException(tarPath.toString());
-            }
-        } else {
-            tarPath = Paths.get(pkg.getOriginalTarPath());
-            if (!Files.exists(tarPath)) {
-                throw new PackageFileNotFoundException(tarPath.toString());
-            }
-        }
+            List<FileContentDto> files = uploadFileRepository
+                    .findByUploadPackageIdOrderByRelativePathAsc(packageId)
+                    .stream()
+                    .map(f -> new FileContentDto(
+                            f.getRelativePath().startsWith("/") ? f.getRelativePath() : "/" + f.getRelativePath(),
+                            f.getSizeBytes()
+                    ))
+                    .collect(Collectors.toList());
 
-        try {
-            List<FileContentDto> files = tarListingService.listFilesFromSubTars(tarPath);
             PackageContentResponse resp = new PackageContentResponse();
             resp.packageId = pkg.getId();
             resp.packageName = pkg.getPackageName();
             resp.files = files;
 
             return resp;
-
-        } catch (IOException e) {
-            throw new DownstreamIOException("Unable to extract/read tar content: " + e.getMessage(), e);
-
-        }
     }
 
     public UploadPackageEntity streamUpload(InputStream inputStream, String filename, String username, boolean contingency) throws IOException {
@@ -180,6 +178,20 @@ public class UploadService {
         }
 
         UploadPackageEntity uploadPkg = createProcessingPackage(filename, username);
+
+        try {
+            long sequence = validateOnly(filename, contingency);
+
+            uploadPkg.setSequenceIndex(sequence);
+            uploadPkg.setNote("Sequence pre-check passed");
+            uploadPkg = uploadPackageRepository.saveAndFlush(uploadPkg);
+
+        } catch (Exception ex) {
+            uploadPkg.setStatus(UploadPackageStatus.FAILED);
+            uploadPkg.setNote(ex.getMessage());
+            uploadPackageRepository.saveAndFlush(uploadPkg);
+            throw ex;
+        }
 
         TransactionEntity tx = transactionService.startUploadTransaction(uploadPkg, Direction.UPSTREAM, username);
 
@@ -275,8 +287,9 @@ public class UploadService {
             existing.setDataDirPath(null);
             existing.setManifestRelativePath(null);
             existing.setManifestMd5DataTar(null);
-            existing.setImportedAt(null);
+            existing.setImportedAt(Instant.now());
             existing.setArchivedAt(null);
+            existing.setSequenceIndex(null);
             existing.setFileCount(null);
             existing.setTotalSizeBytes(null);
             existing.setUploadedBy(username != null ? username : "MANUAL");
@@ -290,8 +303,50 @@ public class UploadService {
         pkg.setPackageName(packageName);
         pkg.setStatus(UploadPackageStatus.PROCESSING);
         pkg.setNote("Stream upload started");
+        pkg.setImportedAt(Instant.now());
         pkg.setUploadedBy(username != null ? username : "MANUAL");
 
         return uploadPackageRepository.saveAndFlush(pkg);
+    }
+
+    public long validateOnly(String packageName, boolean contingency) {
+        long incomingSequence = extractSequence(packageName);
+
+        UploadSequenceEntity seq = uploadSequenceRepository.findById(1L)
+                .orElseThrow(() -> new IllegalStateException("Upload sequence row id=1 not found"));
+        long current = seq.getLastSequenceIndex();
+        long expected = current + 1;
+
+        log.info("VALIDATE START file={} seq={}", packageName, seq.getId());
+
+        if (!contingency && incomingSequence != expected) {
+            log.error("Package rejected. Expected sequence "
+                    + String.format("%06d", expected)
+                    + " but received "
+                    + String.format("%06d", incomingSequence));
+
+            throw new SequenceMismatchException(
+                    "Package rejected. Expected sequence "
+                            + String.format("%06d", expected)
+                            + " but received "
+                            + String.format("%06d", incomingSequence)
+            );
+        }
+
+        if (contingency && incomingSequence <= current) {
+            log.error ("Package rejected in contingency mode. Current sequence is "
+                    + String.format("%06d", current)
+                    + " but received old package "
+                    + String.format("%06d", incomingSequence));
+
+            throw new SequenceMismatchException(
+                    "Package rejected in contingency mode. Current sequence is "
+                            + String.format("%06d", current)
+                            + " but received old package "
+                            + String.format("%06d", incomingSequence)
+            );
+        }
+
+        return incomingSequence;
     }
 }

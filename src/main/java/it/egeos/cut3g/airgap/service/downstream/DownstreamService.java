@@ -6,6 +6,7 @@ import it.egeos.cut3g.airgap.exceptions.PackageFileNotFoundException;
 import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
+import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
 import it.egeos.cut3g.airgap.persistence.enums.FileItemState;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;
@@ -70,12 +71,17 @@ public class DownstreamService {
 
     public List<PackageDto> listReadyForDownload() {
         List<PackageEntity> pkgs = packageRepository.findAll();
-        return pkgs.stream().map(PackageDto::from).collect(Collectors.toList());
+        return pkgs.stream()
+            .sorted(Comparator.comparing(
+                PackageEntity::getTransactionStopTime,
+                Comparator.nullsLast(Comparator.reverseOrder())))
+            .map(PackageDto::from)
+            .collect(Collectors.toList());
     }
 
     public PackageContentResponse tarContent(String packageId) {
         PackageEntity pkg = packageRepository.findById(packageId).orElseThrow(() -> new PackageNotFoundException(packageId));
-        validatePackageAvailability(pkg);
+        checkPackageAvailability(pkg);
 
         List<FileContentDto> files = fileItemRepository.findByPackageId(packageId).stream().map(file -> new FileContentDto(file.getRelativePath(), file.getSizeBytes())).collect(Collectors.toList());
 
@@ -249,6 +255,40 @@ public class DownstreamService {
         packageRepository.save(pkg);
     }
 
+    private void  checkPackageAvailability(PackageEntity pkg) {
+
+        if (pkg.getPackagePath() == null ||
+                pkg.getPackagePath().isBlank()) {
+
+            log.warn(
+                    "Package path missing for package={}",
+                    pkg.getPackageName()
+            );
+
+            pkg.setState(PackageState.DELETED);
+
+            packageRepository.save(pkg);
+        }
+
+        Path packagePath = Paths.get(pkg.getPackagePath())
+                .toAbsolutePath()
+                .normalize();
+
+        if (!Files.exists(packagePath)) {
+
+            log.warn(
+                    "Package file missing -> package={} path={}",
+                    pkg.getPackageName(),
+                    packagePath
+            );
+
+            pkg.setState(PackageState.DELETED);
+
+            packageRepository.save(pkg);
+
+        }
+    }
+
     private void  validatePackageAvailability(PackageEntity pkg) {
 
         if (pkg.getPackagePath() == null ||
@@ -260,6 +300,8 @@ public class DownstreamService {
             );
 
             pkg.setState(PackageState.DELETED);
+            pkg.setNotes("Package path missing for package={}"+
+                    pkg.getPackageName());
 
             packageRepository.save(pkg);
 
@@ -281,6 +323,8 @@ public class DownstreamService {
             );
 
             pkg.setState(PackageState.DELETED);
+            pkg.setNotes("Package path missing for package={}"+
+                    pkg.getPackageName());
 
             packageRepository.save(pkg);
 

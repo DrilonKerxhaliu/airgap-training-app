@@ -1,6 +1,7 @@
 package it.egeos.cut3g.airgap.service.watcher;
 
 import it.egeos.cut3g.airgap.service.util.UiConfigService;
+import it.egeos.cut3g.airgap.service.util.RuntimeConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +28,9 @@ public class AutoModeWatcher {
 
     @Autowired
     private UiConfigService uiConfigService;
+
+    @Autowired
+    private RuntimeConfigService runtimeConfigService;
 
     private WatchService watchService;
     private ExecutorService executor;
@@ -78,6 +82,7 @@ public class AutoModeWatcher {
 
                             lastProcessed.set(System.currentTimeMillis());
                             log.info("config.json modified externally");
+                            runtimeConfigService.reload();
                             uiConfigService.reloadAndBroadcastIfChanged();
                         }
                     }

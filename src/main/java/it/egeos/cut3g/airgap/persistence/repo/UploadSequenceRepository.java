@@ -20,4 +20,6 @@ public interface UploadSequenceRepository
 
     @Query("SELECT s.lastSequenceIndex FROM UploadSequenceEntity s WHERE s.id = 1")
     long findLastSequence();
+
+    Optional<UploadSequenceEntity> findById(Long id);
 }
