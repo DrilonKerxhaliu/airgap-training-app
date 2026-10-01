@@ -196,3 +196,13 @@ Statuses:
 
 19. FINAL STATUS
     This document represents my view based in the email or on the document provided for the creation of the app [Service Airgap].
+
+
+![Screenshot 2026-02-05 alle 12.51.10.png](Screenshot%202026-02-05%20alle%2012.51.10.png)
+
+![Screenshot 2026-02-05 alle 12.52.12.png](Screenshot%202026-02-05%20alle%2012.52.12.png)
+
+![Screenshot 2026-02-05 alle 12.52.26.png](Screenshot%202026-02-05%20alle%2012.52.26.png)
+
+![Screenshot 2026-02-05 alle 13.26.18.png](Screenshot%202026-02-05%20alle%2013.26.18.png)
+
