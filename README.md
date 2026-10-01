@@ -206,3 +206,14 @@ Statuses:
 
 ![Screenshot 2026-02-05 alle 13.26.18.png](Screenshot%202026-02-05%20alle%2013.26.18.png)
 
+![image (1).png](image%20%281%29.png)
+
+![image (2).png](image%20%282%29.png)
+
+![image (3).png](image%20%283%29.png)
+
+![image (4).png](image%20%284%29.png)
+
+![Screenshot at Oct 02 01-36-22.png](Screenshot%20at%20Oct%2002%2001-36-22.png)
+
+![Screenshot at Oct 02 01-36-50.png](Screenshot%20at%20Oct%2002%2001-36-50.png)
