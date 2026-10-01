@@ -73,7 +73,7 @@ public class DownstreamService {
         List<PackageEntity> pkgs = packageRepository.findAll();
         return pkgs.stream()
             .sorted(Comparator.comparing(
-                PackageEntity::getTransactionStopTime,
+                PackageEntity::getTransactionStopTime, 
                 Comparator.nullsLast(Comparator.reverseOrder())))
             .map(PackageDto::from)
             .collect(Collectors.toList());

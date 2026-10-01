@@ -133,7 +133,7 @@ public class UploadService {
         List<UploadPackageEntity> pkgs = uploadPackageRepository.findAll();
         return pkgs.stream()
             .sorted(Comparator.comparing(
-                    UploadPackageEntity::getCreatedAt,
+                    UploadPackageEntity::getCreatedAt, 
                     Comparator.nullsLast(Comparator.reverseOrder())
             ))
             .map(UploadPackageDto::from)

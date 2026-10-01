@@ -33,7 +33,7 @@ Both systems can send and receive files using the same logic and codebase,
 differing only by configuration.
 
 4. TECHNOLOGY STACK (MANDATORY)
-- Java 11
+- Java 17
 - Spring Boot 2.7.18 (Java 11 compatible)
 - Spring Data JPA + Hibernate (NO JdbcTemplate)
 - Maven 3.8.8 (Java 11 compatible)
