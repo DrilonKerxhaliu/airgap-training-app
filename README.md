@@ -460,3 +460,9 @@ curl -X POST "http://localhost:8081/airgapservice/airgap/automode?enabled=false"
 
 - `docker-compose.yml` currently references `./backend/...` paths; align paths with this repository layout before running compose.
 - API base path is `/airgapservice` (from `server.servlet.context-path`).
+
+## License
+
+Licensed under the Apache License, Version 2.0. See the [LICENSE](./LICENSE) file.
+
+Copyright 2026 Drilon Kerxhaliu.
