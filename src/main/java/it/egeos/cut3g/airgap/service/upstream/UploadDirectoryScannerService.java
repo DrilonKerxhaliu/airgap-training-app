@@ -1,6 +1,5 @@
 package it.egeos.cut3g.airgap.service.upstream;
 
-import it.egeos.cut3g.airgap.persistence.repo.UploadPackageRepository;
 import it.egeos.cut3g.airgap.persistence.repo.UploadSequenceRepository;
 
 import org.slf4j.Logger;

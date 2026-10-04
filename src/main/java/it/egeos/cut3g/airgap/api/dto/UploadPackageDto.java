@@ -1,8 +1,6 @@
 package it.egeos.cut3g.airgap.api.dto;
 
-import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
-import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
 
 import java.time.Instant;

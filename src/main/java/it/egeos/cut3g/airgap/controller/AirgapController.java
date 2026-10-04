@@ -1,6 +1,5 @@
 package it.egeos.cut3g.airgap.controller;
 
-import com.google.gson.JsonObject;
 import it.egeos.cut3g.airgap.service.files.FileSseService;
 import it.egeos.cut3g.airgap.service.files.UiConfigSseService;
 import it.egeos.cut3g.airgap.service.util.UiConfigService;

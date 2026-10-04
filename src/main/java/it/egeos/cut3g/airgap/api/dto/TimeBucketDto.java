@@ -1,7 +1,6 @@
 package it.egeos.cut3g.airgap.api.dto;
 
 import java.time.Instant;
-import java.time.LocalDate;
 
 public class TimeBucketDto {
 

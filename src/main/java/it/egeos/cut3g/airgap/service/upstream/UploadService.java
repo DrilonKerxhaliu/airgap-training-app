@@ -1,29 +1,22 @@
 package it.egeos.cut3g.airgap.service.upstream;
 
 import it.egeos.cut3g.airgap.api.dto.*;
-import it.egeos.cut3g.airgap.exceptions.DownstreamIOException;
-import it.egeos.cut3g.airgap.exceptions.PackageFileNotFoundException;
 import it.egeos.cut3g.airgap.exceptions.PackageNotFoundException;
 import it.egeos.cut3g.airgap.exceptions.SequenceMismatchException;
-import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.TransactionEntity;
 import it.egeos.cut3g.airgap.persistence.entity.UploadPackageEntity;
 import it.egeos.cut3g.airgap.persistence.entity.UploadSequenceEntity;
 import it.egeos.cut3g.airgap.persistence.enums.Direction;
-import it.egeos.cut3g.airgap.persistence.enums.PackageState;
 import it.egeos.cut3g.airgap.persistence.enums.TransactionState;
 import it.egeos.cut3g.airgap.persistence.enums.UploadPackageStatus;
 import it.egeos.cut3g.airgap.persistence.repo.*;
 import it.egeos.cut3g.airgap.service.files.TransactionService;
 import it.egeos.cut3g.airgap.service.importing.IncomingPackageImportService;
-import it.egeos.cut3g.airgap.service.tar.TarListingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.persistence.EntityManager;

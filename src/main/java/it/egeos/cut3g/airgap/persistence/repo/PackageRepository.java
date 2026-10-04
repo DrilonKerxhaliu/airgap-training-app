@@ -1,6 +1,5 @@
 package it.egeos.cut3g.airgap.persistence.repo;
 
-import it.egeos.cut3g.airgap.api.dto.PackageStateStatsDto;
 import it.egeos.cut3g.airgap.api.dto.StatsPackageDto;
 import it.egeos.cut3g.airgap.persistence.entity.PackageEntity;
 import it.egeos.cut3g.airgap.persistence.enums.PackageState;

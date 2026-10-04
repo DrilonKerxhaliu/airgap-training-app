@@ -1,6 +1,5 @@
 package it.egeos.cut3g.airgap.service.files;
 
-import it.egeos.cut3g.airgap.api.dto.PackageStateStatsDto;
 import it.egeos.cut3g.airgap.api.dto.StatsPackageDto;
 import it.egeos.cut3g.airgap.api.dto.TransactionStatsDto;
 import org.apache.poi.ss.usermodel.Row;
