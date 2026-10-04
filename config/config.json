@@ -1,0 +1,20 @@
+{
+  "server": {
+    "autoPackaging": {
+      "hours": 1,
+      "max-mb": 100,
+      "size-check-interval-min": 10
+    },
+    "downstream": {
+      "download_package_path": "file:///opt/airgap/upstream/data/upload_output"
+    },
+    "upstream": {
+      "upload_package_path": "file:///Users/user/IdeaProjects/airgap/target/test/OUTPUT"
+    }
+  },
+  "ui": {
+    "autoButtonVisible": true,
+    "autoMode": false,
+    "downloadPackageButtonVisible": true
+  }
+}
